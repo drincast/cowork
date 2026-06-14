@@ -6,30 +6,73 @@ Herramienta CLI para registrar sesiones de trabajo colaborativo entre una person
 
 ---
 
+## Autor
+
+Creado por **Rubén Orozco** ([@drincastX](https://github.com/drincastX)).
+
+Si usas o adaptas este proyecto, se agradece mantener el crédito de autoría conforme a la licencia MIT incluida.
+
+---
+
 ## Características
 
 - Estado central en SQLite (`~/.worklog/worklog.db`), no contamina tus repos.
-- Un solo script Python con biblioteca estándar. Sin dependencias.
+- Un solo script Python con biblioteca estándar. Sin dependencias externas.
 - Multiplataforma: Windows, Linux, macOS.
-- Consultas de tiempo por proyecto, modelo y mes.
-- Export opcional a `WORKLOG.md` versionable en el repo.
+- Consultas de tiempo por proyecto, modelo y mes (Fase 2).
+- Export opcional a `WORKLOG.md` versionable en el repo (Fase 2).
 
-## Uso (previsto)
+---
+
+## Instalación
+
+Requiere **Python 3.8+**. Sin dependencias externas.
 
 ```bash
-cowork start "Claude Code" "claude-opus-4-8"   # abre sesión en el proyecto actual
-cowork status                                   # ¿hay sesión abierta?
-cowork end "Implementé el parser de ChatGPT"    # cierra y calcula duración
-cowork report --model                           # tiempo total por modelo
-cowork export --md                              # genera WORKLOG.md a demanda
+# Clona el repo
+git clone https://github.com/drincastX/cowork.git
+
+# Úsalo directamente
+python cowork.py start "Claude Code" "claude-opus-4-8"
 ```
+
+Para invocarlo como `cowork` desde cualquier carpeta, consulta la Fase 3 en `docs/PLAN.md`.
+
+---
+
+## Uso
+
+```bash
+python cowork.py init "Nombre del proyecto"         # registra o renombra el proyecto actual
+python cowork.py start "Claude Code" "claude-opus-4-8"  # abre sesión
+python cowork.py status                             # muestra sesión activa y tiempo transcurrido
+python cowork.py end "resumen de lo trabajado"      # cierra y calcula duración
+```
+
+Si olvidaste cerrar una sesión anterior:
+
+```bash
+python cowork.py start "Claude Code" --force        # auto-cierra la anterior y abre la nueva
+```
+
+---
 
 ## Documentación
 
-- `docs/ARCHITECTURE.md` — diseño del sistema y decisiones técnicas.
-- `docs/PLAN.md` — plan de ejecución por fases.
-- `AGENTS.md` — instrucciones para el agente de código.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — diseño del sistema y decisiones técnicas.
+- [`docs/PLAN.md`](docs/PLAN.md) — plan de ejecución por fases con checklist de progreso.
+- [`AGENTS.md`](AGENTS.md) — instrucciones para el agente de código.
+- [`DEVLOG.md`](DEVLOG.md) — registro de desarrollo sesión a sesión.
+
+---
 
 ## Estado
 
-En diseño. La implementación arranca por la Fase 1 (ver `docs/PLAN.md`).
+**Fase 1 completada** — `init`, `start`, `end`, `status` funcionando con SQLite.
+Fase 2 en camino: `list`, `report`, `export`.
+
+---
+
+## Licencia
+
+MIT © 2026 Rubén Orozco (drincastX). Ver [`LICENSE`](LICENSE).
