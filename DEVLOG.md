@@ -5,6 +5,28 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-06-14 | Sesión 2 | Subida a GitHub y licencia MIT
+
+### Tareas realizadas
+
+- **Licencia MIT agregada**
+  Archivo `LICENSE` con copyright a nombre de Rubén Orozco (drincastX). Decisión: MIT por ser permisiva y requerir que se mantenga el aviso de autoría en cualquier copia o uso del código.
+
+- **README actualizado**
+  Se agregó sección de autor con enlace al perfil de GitHub, instrucciones de instalación, uso con los comandos reales de Fase 1, estado de fases y referencia a la licencia.
+
+- **Repositorio subido a GitHub**
+  Repo público en `https://github.com/drincast/cowork`. Se corrigió la URL del remote (nombre de usuario `drincast`, no `drincastX`).
+
+- **Registro de sesión en BD**
+  Primera sesión registrada con `cowork` en producción: 23 minutos, agente Claude Code (claude-sonnet-4-6).
+
+### Pendiente para próxima sesión
+
+- Iniciar Fase 2: comandos `list`, `report` y `export`.
+
+---
+
 ## 2026-06-14 | Sesión 1 | Implementación Fase 1 — Núcleo funcional
 
 ### Tareas realizadas
