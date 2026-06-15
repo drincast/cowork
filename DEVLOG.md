@@ -5,6 +5,32 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-06-15 | Sesión 3 | Fase 2 — Consultas y export
+
+### Tareas realizadas
+
+- **Comando `list [-n N]`**
+  Lista las últimas N sesiones (default 10) del proyecto actual en tabla legible: ID, agente, modelo, inicio, fin y duración. La sesión abierta se muestra con duración en vivo y "— (abierta)" en Fin.
+
+- **Comando `report [--project] [--month] [--model]`**
+  Agregados de tiempo (sesiones, minutos, horas) con flags combinables; orden por minutos desc y fila TOTAL. Decisión: la agregación se hace en Python reutilizando `duration_minutes()`, no con `SUM`/`GROUP BY` en SQL, porque la duración no se almacena y restar timestamps ISO 8601 con offset en SQL es frágil. `report` tiene alcance global (todos los proyectos) y solo cuenta sesiones cerradas.
+
+- **Comando `export [--md] [--path]`**
+  Genera `WORKLOG.md` del proyecto actual desde la BD: encabezado con totales (sesiones, minutos, horas, última sesión) y sesiones en orden descendente con agente, modelo, inicio, fin, duración y resumen. Es la única escritura autorizada dentro del repo; vista derivada, no se edita a mano. Se generó el `WORKLOG.md` inicial del proyecto.
+
+- **Helper `fmt_duration` extraído**
+  Formateo de minutos a `Xh YYm` reutilizado por `list` y `export`.
+
+- **Corrección en `docs/PLAN.md`**
+  Se detectó que la línea `**Estado:**` se repetía idéntica en las 5 fases (`[ ] Pendiente / [x] Completada`), haciendo parecer que todas estaban completadas. Se añadió una sección "Estado de fases" como lista de overview y se dejó un estado real único por fase (solo Fase 1 y 2 completadas).
+
+### Pendiente para próxima sesión
+
+- Retomar el análisis de **identidad portable del proyecto** (ruta absoluta falla con disco externo, otro equipo u otro usuario). El usuario tiene una propuesta propia por revisar.
+- Iniciar Fase 3: añadir `cowork` al PATH y guía breve para el agente.
+
+---
+
 ## 2026-06-14 | Sesión 2 | Subida a GitHub y licencia MIT
 
 ### Tareas realizadas

@@ -7,6 +7,7 @@ import argparse
 import os
 import sqlite3
 import sys
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -85,6 +86,11 @@ def parse_iso(ts: str) -> datetime:
 def duration_minutes(start: str, end: str) -> float:
     delta = parse_iso(end) - parse_iso(start)
     return delta.total_seconds() / 60
+
+
+def fmt_duration(mins: float) -> str:
+    h, m = divmod(int(mins), 60)
+    return f"{h}h {m:02d}m" if h else f"{m}m"
 
 
 def elapsed_display(start: str) -> str:
@@ -266,6 +272,172 @@ def cmd_status(args) -> None:
         )
 
 
+def cmd_list(args) -> None:
+    path = current_path()
+    with open_db() as conn:
+        project = conn.execute(
+            "SELECT * FROM projects WHERE path = ?", (path,)
+        ).fetchone()
+        if not project:
+            print("No hay proyecto registrado en esta ruta.")
+            return
+
+        rows = conn.execute(
+            "SELECT * FROM sessions WHERE project_id = ? "
+            "ORDER BY start_at DESC LIMIT ?",
+            (project["id"], args.n),
+        ).fetchall()
+        if not rows:
+            print(f"Proyecto : {project['name']}\nSin sesiones registradas.")
+            return
+
+        print(f"Proyecto : {project['name']}  ·  últimas {len(rows)} sesiones\n")
+        header = (
+            f"{'ID':>3}  {'Agente':<14} {'Modelo':<20} "
+            f"{'Inicio':<16} {'Fin':<16} {'Duración':>9}"
+        )
+        print(header)
+        print("-" * len(header))
+        for r in rows:
+            inicio = parse_iso(r["start_at"]).strftime("%Y-%m-%d %H:%M")
+            if r["end_at"]:
+                fin = parse_iso(r["end_at"]).strftime("%Y-%m-%d %H:%M")
+                dur = fmt_duration(duration_minutes(r["start_at"], r["end_at"]))
+            else:
+                fin = "— (abierta)"
+                dur = elapsed_display(r["start_at"])
+            modelo = r["model"] or "—"
+            print(
+                f"{r['id']:>3}  {r['agent']:<14.14} {modelo:<20.20} "
+                f"{inicio:<16} {fin:<16} {dur:>9}"
+            )
+
+
+def cmd_report(args) -> None:
+    with open_db() as conn:
+        rows = conn.execute(
+            "SELECT s.start_at, s.end_at, s.model, p.name AS project_name "
+            "FROM sessions s JOIN projects p ON p.id = s.project_id "
+            "WHERE s.end_at IS NOT NULL"
+        ).fetchall()
+
+    if not rows:
+        print("No hay sesiones cerradas para reportar.")
+        return
+
+    # Dimensiones de agrupación según los flags activos.
+    dims = []
+    if args.project:
+        dims.append(("Proyecto", lambda r: r["project_name"]))
+    if args.month:
+        dims.append(("Mes", lambda r: r["start_at"][:7]))  # YYYY-MM
+    if args.model:
+        dims.append(("Modelo", lambda r: r["model"] or "—"))
+
+    # agg: clave (tupla de dimensiones) -> [num_sesiones, minutos_totales]
+    agg = defaultdict(lambda: [0, 0.0])
+    for r in rows:
+        key = tuple(fn(r) for _, fn in dims)
+        agg[key][0] += 1
+        agg[key][1] += duration_minutes(r["start_at"], r["end_at"])
+
+    # Sin flags: total global.
+    if not dims:
+        n, mins = agg[()]
+        print("Reporte global (solo sesiones cerradas)")
+        print(f"  Sesiones : {n}")
+        print(f"  Minutos  : {mins:.1f}")
+        print(f"  Horas    : {mins / 60:.2f}")
+        return
+
+    ordenado = sorted(agg.items(), key=lambda kv: kv[1][1], reverse=True)
+
+    # Ancho de cada columna = el mayor entre el título y los valores reales.
+    titles = [t for t, _ in dims]
+    widths = [len(t) for t in titles]
+    for key, _ in agg.items():
+        for i, v in enumerate(key):
+            widths[i] = max(widths[i], len(str(v)))
+
+    header = "  ".join(f"{t:<{w}}" for t, w in zip(titles, widths))
+    header += f"  {'Sesiones':>9} {'Minutos':>9} {'Horas':>7}"
+    print(header)
+    print("-" * len(header))
+
+    total_n, total_mins = 0, 0.0
+    for key, (n, mins) in ordenado:
+        cols = "  ".join(f"{str(v):<{w}}" for v, w in zip(key, widths))
+        print(f"{cols}  {n:>9} {mins:>9.1f} {mins / 60:>7.2f}")
+        total_n += n
+        total_mins += mins
+
+    print("-" * len(header))
+    label_w = sum(widths) + 2 * (len(widths) - 1)
+    print(f"{'TOTAL':<{label_w}}  {total_n:>9} {total_mins:>9.1f} {total_mins / 60:>7.2f}")
+
+
+def cmd_export(args) -> None:
+    path = current_path()
+    with open_db() as conn:
+        project = conn.execute(
+            "SELECT * FROM projects WHERE path = ?", (path,)
+        ).fetchone()
+        if not project:
+            print("No hay proyecto registrado en esta ruta.")
+            sys.exit(1)
+        sessions = conn.execute(
+            "SELECT * FROM sessions WHERE project_id = ? AND end_at IS NOT NULL "
+            "ORDER BY start_at DESC",
+            (project["id"],),
+        ).fetchall()
+
+    out_path = Path(args.path) if args.path else Path(path) / "WORKLOG.md"
+
+    total_sessions = len(sessions)
+    total_mins = sum(duration_minutes(s["start_at"], s["end_at"]) for s in sessions)
+    ultima = (
+        parse_iso(sessions[0]["start_at"]).strftime("%Y-%m-%d %H:%M")
+        if sessions else "—"
+    )
+
+    lines = [
+        f"# WORKLOG — {project['name']}",
+        "",
+        f"> Generado por `cowork export` el {now_iso()}.",
+        "> Vista derivada de la base de datos; no editar a mano.",
+        "",
+        "## Totales",
+        "",
+        f"- Sesiones: {total_sessions}",
+        f"- Minutos: {total_mins:.1f}",
+        f"- Horas: {total_mins / 60:.2f}",
+        f"- Última sesión: {ultima}",
+        "",
+        "## Sesiones",
+        "",
+    ]
+
+    if not sessions:
+        lines.append("_Sin sesiones cerradas registradas._")
+    for s in sessions:
+        inicio = parse_iso(s["start_at"]).strftime("%Y-%m-%d %H:%M")
+        fin = parse_iso(s["end_at"]).strftime("%Y-%m-%d %H:%M")
+        dur = fmt_duration(duration_minutes(s["start_at"], s["end_at"]))
+        modelo = s["model"] or "—"
+        lines.append(f"### {inicio} · {s['agent']}")
+        lines.append("")
+        lines.append(f"- Modelo: {modelo}")
+        lines.append(f"- Inicio: {inicio}")
+        lines.append(f"- Fin: {fin}")
+        lines.append(f"- Duración: {dur}")
+        if s["summary"]:
+            lines.append(f"- Resumen: {s['summary']}")
+        lines.append("")
+
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Export generado: {out_path} ({total_sessions} sesiones).")
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -297,6 +469,24 @@ def build_parser() -> argparse.ArgumentParser:
     # status
     p_status = sub.add_parser("status", help="Muestra la sesión abierta y tiempo transcurrido.")
     p_status.set_defaults(func=cmd_status)
+
+    # list
+    p_list = sub.add_parser("list", help="Lista las últimas sesiones del proyecto actual.")
+    p_list.add_argument("-n", type=int, default=10, help="Número de sesiones a mostrar (default 10).")
+    p_list.set_defaults(func=cmd_list)
+
+    # report
+    p_report = sub.add_parser("report", help="Agregados de tiempo por proyecto, mes y/o modelo.")
+    p_report.add_argument("--project", action="store_true", help="Agrupa por proyecto.")
+    p_report.add_argument("--month", action="store_true", help="Agrupa por mes (YYYY-MM).")
+    p_report.add_argument("--model", action="store_true", help="Agrupa por modelo.")
+    p_report.set_defaults(func=cmd_report)
+
+    # export
+    p_export = sub.add_parser("export", help="Genera WORKLOG.md del proyecto actual desde la BD.")
+    p_export.add_argument("--md", action="store_true", help="Formato Markdown (por defecto).")
+    p_export.add_argument("--path", default=None, help="Ruta de salida (default: <proyecto>/WORKLOG.md).")
+    p_export.set_defaults(func=cmd_export)
 
     return parser
 

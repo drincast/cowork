@@ -5,9 +5,21 @@
 
 ---
 
+## Estado de fases
+
+- [x] **Fase 1** — Núcleo funcional (MVP) · completada en sesión 2 (2026-06-14)
+- [x] **Fase 2** — Consultas y export · completada en sesión 3 (2026-06-15)
+- [ ] **Fase 3** — Ergonomía de instalación
+- [ ] **Fase 4** — Empaquetado pip
+- [ ] **Fase 5** — Extras
+
+> Leyenda: `[x]` completada · `[ ]` pendiente. El detalle de tareas de cada fase está en su checklist más abajo.
+
+---
+
 ## Fase 1 — Núcleo funcional (MVP)
 
-**Estado:** `[ ] Pendiente` / `[x] Completada`
+**Estado:** ✅ Completada (sesión 2 · 2026-06-14)
 
 **Objetivo:** un `cowork.py` que abra y cierre sesiones contra SQLite. Reemplaza el sistema actual de scripts + Markdown.
 
@@ -30,23 +42,25 @@ Checklist de tareas:
 
 ## Fase 2 — Consultas y export
 
-**Estado:** `[ ] Pendiente` / `[x] Completada`
+**Estado:** ✅ Completada (sesión 3 · 2026-06-15)
 
 **Objetivo:** sacar valor de tener los datos en SQLite. Supera lo que el sistema Markdown nunca pudo hacer.
 
 Checklist de tareas:
 
-- [ ] Comando `list [-n N]`: últimas N sesiones del proyecto actual, formateadas en tabla legible.
-- [ ] Comando `report`: agregados de tiempo. Flags `--project`, `--month`, `--model`. Totales por dimensión usando SQL (`SUM`, `GROUP BY`).
-- [ ] Comando `export --md [--path]`: genera `WORKLOG.md` desde la BD con el formato del sistema actual (totales arriba, sesiones en orden descendente).
+- [x] Comando `list [-n N]`: últimas N sesiones del proyecto actual, formateadas en tabla legible.
+- [x] Comando `report`: agregados de tiempo. Flags `--project`, `--month`, `--model`. Totales por dimensión (agregación en Python reutilizando `duration_minutes`; ver nota abajo).
+- [x] Comando `export --md [--path]`: genera `WORKLOG.md` desde la BD con el formato del sistema actual (totales arriba, sesiones en orden descendente).
 
 **Criterio de aceptación:** `report --model` muestra minutos totales agrupados por modelo; `export` produce un `WORKLOG.md` equivalente al formato actual.
+
+> Nota de diseño (sesión 3): la agregación de `report` se hace en Python, no con `SUM`/`GROUP BY` en SQL. La duración no se almacena (se calcula de `start_at`/`end_at`), y restar timestamps ISO 8601 con offset en SQL (`julianday`) es frágil. Se reutiliza el helper `duration_minutes()` ya probado; el volumen de datos es mínimo. `report` opera sobre **todos los proyectos** (alcance global) y solo sobre **sesiones cerradas**.
 
 ---
 
 ## Fase 3 — Ergonomía de instalación
 
-**Estado:** `[ ] Pendiente` / `[x] Completada`
+**Estado:** ⬜ Pendiente
 
 **Objetivo:** que `cowork` sea invocable globalmente y que el agente sepa usarlo.
 
@@ -62,7 +76,7 @@ Checklist de tareas:
 
 ## Fase 4 — Empaquetado pip (evolución)
 
-**Estado:** `[ ] Pendiente` / `[x] Completada`
+**Estado:** ⬜ Pendiente
 
 **Objetivo:** instalación profesional reproducible.
 
@@ -79,7 +93,7 @@ Checklist de tareas:
 
 ## Fase 5 — Extras (futuro)
 
-**Estado:** `[ ] Pendiente` / `[x] Completada`
+**Estado:** ⬜ Pendiente
 
 Checklist de tareas candidatas:
 
