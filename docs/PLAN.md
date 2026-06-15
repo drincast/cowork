@@ -9,6 +9,7 @@
 
 - [x] **Fase 1** — Núcleo funcional (MVP) · completada en sesión 2 (2026-06-14)
 - [x] **Fase 2** — Consultas y export · completada en sesión 3 (2026-06-15)
+- [ ] **Fase 2.5** — Configuración e identidad portable · análisis completado en sesión 4 (2026-06-15); implementación pendiente
 - [ ] **Fase 3** — Ergonomía de instalación
 - [ ] **Fase 4** — Empaquetado pip
 - [ ] **Fase 5** — Extras
@@ -55,6 +56,38 @@ Checklist de tareas:
 **Criterio de aceptación:** `report --model` muestra minutos totales agrupados por modelo; `export` produce un `WORKLOG.md` equivalente al formato actual.
 
 > Nota de diseño (sesión 3): la agregación de `report` se hace en Python, no con `SUM`/`GROUP BY` en SQL. La duración no se almacena (se calcula de `start_at`/`end_at`), y restar timestamps ISO 8601 con offset en SQL (`julianday`) es frágil. Se reutiliza el helper `duration_minutes()` ya probado; el volumen de datos es mínimo. `report` opera sobre **todos los proyectos** (alcance global) y solo sobre **sesiones cerradas**.
+
+---
+
+## Fase 2.5 — Configuración e identidad portable
+
+**Estado:** 🔍 Análisis completado (sesión 4 · 2026-06-15) · implementación pendiente
+
+**Objetivo:** que la herramienta funcione igual desde cualquier equipo, disco o usuario. Separa dos preguntas que hoy dependen del entorno: *dónde viven los datos* (almacenamiento) y *quién es el proyecto* (identidad). Diseño completo en `ARCHITECTURE.md` §11.
+
+> Esta fase tiene dos etapas: **análisis** (esta sesión, ya documentado) e **implementación** (pendiente).
+
+### Etapa A — Análisis (completada)
+
+- [x] Detectar que identidad por ruta absoluta falla con disco externo / otro equipo / otro usuario / otro SO.
+- [x] Decidir resolución por capas para almacenamiento e identidad.
+- [x] Decidir formato de configuración: **JSON** (stdlib lee y escribe; gestionable por comandos).
+- [x] Decidir identidad: `uid` (UUID4 completo, se muestra prefijo corto) + `name` (repetible) + `path` (informativo).
+- [x] Precisar la regla "no escribir estado en el proyecto": el marcador `.cowork` (solo `id` + `name`) es etiqueta de identidad, no estado de sesiones; permitido y versionable.
+- [x] Documentar el diseño en `ARCHITECTURE.md` §11.
+
+### Etapa B — Implementación (pendiente)
+
+- [ ] **Config JSON** en `~/.worklog/config.json` (o `WORKLOG_HOME`): clave `db_path`. Auto-creación con valores por defecto.
+- [ ] **Resolución de BD por capas:** `--db` → `WORKLOG_HOME` → `config.json` → default `~/.worklog/worklog.db`.
+- [ ] **Comando `config`:** muestra la ruta efectiva de la BD y de qué fuente salió; `config set-db <ruta>` la cambia.
+- [ ] **Esquema:** añadir `uid TEXT UNIQUE` a `projects`; `name` deja de ser clave; `path` pasa a informativo (última ruta vista). Migración idempotente.
+- [ ] **Marcador `.cowork`** (JSON con `id` + `name`): lo crea `init`/`start`; se busca subiendo directorios.
+- [ ] **Resolución de identidad por capas:** `.cowork` → URL del remoto Git → ruta (fallback con aviso de "no portable").
+- [ ] **Detección de duplicados:** `init` avisa si el `name` ya existe con otro `uid`; opción `--link <id>` para asociar.
+- [ ] Actualizar `AGENTS.md` (regla del marcador) y `README.md` (config e identidad).
+
+**Criterio de aceptación:** registrar sesiones del mismo proyecto desde dos rutas/letras de unidad distintas y que cuenten como **un solo** proyecto; `cowork config` muestra claramente dónde está la BD.
 
 ---
 

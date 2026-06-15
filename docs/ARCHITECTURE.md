@@ -89,7 +89,7 @@ Resolución de la carpeta de datos, cross-platform:
 Dentro de esa carpeta:
 
 - `worklog.db` — base de datos SQLite (única fuente de verdad).
-- `config.toml` — (fase futura) configuración opcional: autor por defecto, auto-export, etc.
+- `config.json` — (Fase 2.5, ver §11) configuración: `db_path` y, a futuro, cadena de conexión; autor por defecto, etc. Se decidió **JSON** en vez de TOML porque la stdlib lo lee y escribe.
 
 Nada se escribe en el proyecto salvo que se invoque `export`.
 
@@ -162,7 +162,7 @@ Esto resuelve el escenario que en el sistema Markdown actual produciría duracio
 Notas de comportamiento:
 
 - `start` funciona **sin `init` previo**: en una ruta nueva crea el proyecto automáticamente usando el nombre del directorio. `init` solo sirve para asignar un nombre distinto al del directorio.
-- El proyecto se identifica por la **ruta absoluta** desde donde se ejecuta el comando.
+- El proyecto se identifica por la **ruta absoluta** desde donde se ejecuta el comando. **(Superado en Fase 2.5 — ver §11:** la ruta deja de ser la clave; la identidad pasa a un `uid` estable resuelto por capas, para que el mismo proyecto cuente igual desde otro equipo, disco o usuario.)
 - El autor por defecto es **drincast** (configurable en fase futura).
 
 ---
@@ -192,3 +192,67 @@ El export es **a demanda**: se ejecuta solo cuando el usuario lo requiere con `c
 ## 10. Migración desde el sistema actual
 
 El `WORKLOG.md` existente contiene 3 sesiones. En la fase de extras se incluye un import one-shot que parsea ese Markdown y carga las sesiones históricas en SQLite, para no perder el registro previo.
+
+---
+
+## 11. Configuración e identidad portable (Fase 2.5)
+
+> Decidido en la sesión 4 (2026-06-15). Esta sección **supera** dos decisiones previas: la identidad por ruta absoluta (§7) y el `config.toml` (§4, ahora JSON), y **precisa** la regla de "no escribir estado en el proyecto" (§4). Motivación: la herramienta debe funcionar igual desde cualquier equipo, disco externo o usuario; hoy todo se deriva del entorno (ruta, letra de unidad, home), lo que parte el historial al cambiar de máquina.
+
+### 11.1 Dos preguntas separadas
+
+El diseño separa dos responsabilidades que antes estaban mezcladas:
+
+- **Almacenamiento** — *¿dónde viven los datos?* (ubicación/conexión de la BD).
+- **Identidad** — *¿quién es el proyecto?* (la clave que agrupa las sesiones).
+
+Ambas se resuelven con la misma receta: **resolución por capas + configuración explícita**, en lugar de un valor quemado y oculto.
+
+### 11.2 Almacenamiento — config JSON + resolución por capas
+
+La ubicación de la BD se resuelve en este orden (gana la primera que exista):
+
+1. Flag `--db <ruta>` (explícito, por invocación; avanzado).
+2. Variable de entorno `WORKLOG_HOME` (para power users, CI, disco portátil).
+3. **Archivo de configuración** `~/.worklog/config.json` (o dentro de `WORKLOG_HOME`): clave `db_path`.
+4. Default `~/.worklog/worklog.db` — ahora **documentado y visible** vía el comando `config`.
+
+Decisiones:
+
+- **Formato JSON** (no TOML): la stdlib **lee y escribe** JSON (`tomllib` solo lee). El config lo gestionan comandos (`cowork config set-db <ruta>`) para que el usuario no-técnico no edite a mano.
+- Comando **`cowork config`**: imprime la ruta efectiva de la BD y de qué fuente salió. Resuelve el riesgo de "ruta quemada y sin documentar" que hace que el usuario se pierda.
+- **Futuro multi-backend** (el dato vive "dentro de cowork", no en cada proyecto): `db_path` evoluciona a un objeto `connection` (p.ej. DSN de Postgres) sin romper compatibilidad. Para habilitarlo, **todo el SQL se mantiene en una capa de acceso a datos**; SQLite hoy, otro backend mañana sin tocar los comandos.
+
+### 11.3 Identidad — `uid` estable resuelto por capas
+
+La clave del proyecto deja de ser la ruta. Se resuelve en este orden (gana la primera que exista):
+
+1. **Marcador `.cowork`** en la carpeta del proyecto (se busca subiendo directorios). JSON con `id` + `name`. Viaja *dentro del proyecto* → inmune a ruta, letra de unidad, equipo, usuario y SO. Lo crea `init`/`start`.
+2. **URL del remoto Git** (normalizada), si es repo con `origin` y no hay marcador: identidad automática, cero fricción para el caso dev típico.
+3. **Ruta absoluta** como último recurso, con aviso de "identidad no portable".
+
+Sobre el `uid`: se almacena un **UUID4 completo** (único garantizado a cualquier escala) y en pantalla se muestra solo un **prefijo corto**. No se usa un UUID corto como clave porque a gran escala produce colisiones (problema del cumpleaños).
+
+### 11.4 Esquema actualizado
+
+```sql
+ALTER TABLE projects ADD COLUMN uid TEXT;   -- identificador estable (UUID4)
+-- name: pasa a ser nombre humano REPETIBLE (ya no clave)
+-- path: pasa a ser informativo ("última ruta vista"), no clave
+CREATE UNIQUE INDEX idx_projects_uid ON projects(uid);
+```
+
+- `uid` — clave real, única.
+- `name` — legible, **puede repetirse**.
+- `path` — informativo (última ruta donde se vio el proyecto).
+- **Detección de duplicados:** en `init`, si el `name` ya existe con otro `uid`, la herramienta **avisa** ("ya hay un proyecto llamado X; ¿es el mismo? usa `--link <id>` o elige otro nombre"). El `uid` evita fusiones accidentales.
+
+Migración idempotente: a los proyectos existentes se les asigna un `uid` la primera vez.
+
+### 11.5 Precisión de la regla "no escribir estado en el proyecto"
+
+La regla (§4) buscaba **no meter la base de datos en cada proyecto**, y eso se respeta: la BD sigue siendo central. El marcador `.cowork` contiene **solo `id` + `name`** — es una **etiqueta de identidad** (como `.git` o `.editorconfig`), **no estado de sesiones** (no guarda tiempos ni historial). Por eso está permitido y es **versionable** (se recomienda commitearlo para que la identidad viaje con el repo).
+
+### 11.6 Hacia el registro casi automático (visión)
+
+La identidad estable habilita automatizar el registro a futuro (no es parte de Fase 2.5): p.ej. un git hook que dispare `start` al primer commit del día y `end` por inactividad, o integración con el shell/editor. El diseño de arriba es el prerrequisito.
