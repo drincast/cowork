@@ -19,8 +19,10 @@ Si usas o adaptas este proyecto, se agradece mantener el crédito de autoría co
 - Estado central en SQLite (`~/.worklog/worklog.db`), no contamina tus repos.
 - Un solo script Python con biblioteca estándar. Sin dependencias externas.
 - Multiplataforma: Windows, Linux, macOS.
-- Consultas de tiempo por proyecto, modelo y mes (Fase 2).
-- Export opcional a `WORKLOG.md` versionable en el repo (Fase 2).
+- Consultas de tiempo por proyecto, modelo y mes (`report`) y listado de sesiones (`list`).
+- Export opcional a `WORKLOG.md` versionable en el repo (`export`).
+- Ubicación de la BD configurable: comando `config`, variable `WORKLOG_HOME` o flag `--db`.
+- Identidad de proyecto portable entre equipos, discos y usuarios (marcador `.cowork` o remoto git), no atada a la ruta.
 
 ---
 
@@ -49,11 +51,34 @@ python cowork.py status                             # muestra sesión activa y t
 python cowork.py end "resumen de lo trabajado"      # cierra y calcula duración
 ```
 
+Consultas y export:
+
+```bash
+python cowork.py list -n 10                          # últimas sesiones del proyecto
+python cowork.py report --model                      # tiempo agregado por modelo (o --project / --month)
+python cowork.py export                              # genera WORKLOG.md desde la BD
+```
+
 Si olvidaste cerrar una sesión anterior:
 
 ```bash
 python cowork.py start "Claude Code" --force        # auto-cierra la anterior y abre la nueva
 ```
+
+---
+
+## Configuración e identidad
+
+**¿Dónde vive la base de datos?** Se resuelve por capas (gana la primera): flag `--db <ruta>` → variable `WORKLOG_HOME` → `config.json` → por defecto `~/.worklog/worklog.db`.
+
+```bash
+python cowork.py config                              # muestra la ruta efectiva de la BD y de qué fuente salió
+python cowork.py config set-db "D:\datos\worklog.db" # fija la ruta en config.json
+```
+
+**¿Cómo se identifica un proyecto?** No por la ruta (que cambia entre equipos o discos), sino por un identificador estable resuelto por capas: marcador `.cowork` → URL del remoto git → ruta (último recurso). La primera vez, `init`/`start` crean un archivo `.cowork` con un `id` y un `name`.
+
+> **Commitea el archivo `.cowork`.** Es una etiqueta de identidad (como `.git`), no guarda datos de sesiones. Versionarlo hace que el mismo proyecto cuente igual desde cualquier equipo, disco o usuario. Si dos proyectos comparten nombre, `init` avisa y puedes asociarlos con `cowork init --link <uid>`.
 
 ---
 
@@ -68,8 +93,10 @@ python cowork.py start "Claude Code" --force        # auto-cierra la anterior y 
 
 ## Estado
 
-**Fase 1 completada** — `init`, `start`, `end`, `status` funcionando con SQLite.
-Fase 2 en camino: `list`, `report`, `export`.
+- **Fase 1 completada** — `init`, `start`, `end`, `status` con SQLite.
+- **Fase 2 completada** — `list`, `report`, `export`.
+- **Fase 2.5 completada** — configuración de la BD (`config`) e identidad de proyecto portable (`.cowork` / remoto git).
+- Siguiente: Fase 3 (invocar `cowork` desde cualquier carpeta).
 
 ---
 

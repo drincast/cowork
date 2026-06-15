@@ -5,6 +5,48 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-06-15 | Sesión 5 | Fase 2.5 Etapa B — Implementación
+
+### Tareas realizadas
+
+- **Almacenamiento configurable**
+  `config.json` (gestionado por comandos, no auto-escrito al leer) y resolución de la BD por capas: `--db` → `WORKLOG_HOME` → `config.json` → default. Nuevo comando `config` (muestra ruta efectiva + fuente) y `config set-db <ruta>`. Flag global `--db`.
+
+- **Identidad de proyecto portable**
+  Esquema migrado idempotente: `uid` (UUID4) con índice único + `git_remote`; `path` pasa a informativo. Resolución por capas: marcador `.cowork` → URL del remoto git (https/ssh normalizadas) → ruta. `find_project` (lectura) y `ensure_project` (creación + escribe marcador). Detección de duplicados de nombre e `init --link <uid>`.
+
+- **Comandos adaptados**
+  `start`, `end`, `status`, `list`, `export` resuelven el proyecto por identidad, ya no por ruta.
+
+- **Documentación**
+  `AGENTS.md` (reglas 1, 2, 4, 5), `README.md` (config e identidad) y `docs/PLAN.md` (Fase 2.5 completada).
+
+- **Pruebas manuales en sandbox aislado**
+  Con `WORKLOG_HOME` temporal y proyectos falsos se verificaron las 3 capas de identidad, normalización https/ssh, detección de duplicados y `--link`. La migración de la BD real no perdió datos.
+
+### Pendiente para próxima sesión
+
+- Decidir nombre/ubicación de una guía de pruebas manuales (propuesta: `docs/pruebas/identidad-portable.md` con encabezado de alcance).
+- Generar el `.cowork` del propio repo (dogfooding, previsto para Fase 3).
+- Iniciar Fase 3: `cowork` invocable desde cualquier carpeta.
+
+---
+
+## 2026-06-15 | Sesión 4 | Fase 2.5 Etapa A — Análisis y diseño
+
+### Tareas realizadas
+
+- **Diagnóstico de portabilidad**
+  Se identificó que identificar el proyecto por la ruta absoluta falla con disco externo (cambia la letra), otro equipo u otro usuario.
+
+- **Diseño por capas**
+  Se separó "dónde viven los datos" (config) de "quién es el proyecto" (identidad). Decisiones: config en JSON; identidad por `uid` estable (UUID4) resuelto por capas; el marcador `.cowork` (solo `id` + `name`) es etiqueta de identidad versionable, no estado.
+
+- **Documentación del diseño**
+  Nueva sección `ARCHITECTURE.md` §11 y `docs/PLAN.md` (Fase 2.5 con etapas de análisis e implementación). Se corrigió además el mensaje corrupto del commit de Fase 2 (amend) y se commiteó la documentación.
+
+---
+
 ## 2026-06-15 | Sesión 3 | Fase 2 — Consultas y export
 
 ### Tareas realizadas

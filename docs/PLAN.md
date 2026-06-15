@@ -9,7 +9,7 @@
 
 - [x] **Fase 1** — Núcleo funcional (MVP) · completada en sesión 2 (2026-06-14)
 - [x] **Fase 2** — Consultas y export · completada en sesión 3 (2026-06-15)
-- [ ] **Fase 2.5** — Configuración e identidad portable · análisis completado en sesión 4 (2026-06-15); implementación pendiente
+- [x] **Fase 2.5** — Configuración e identidad portable · completada en sesión 5 (2026-06-15)
 - [ ] **Fase 3** — Ergonomía de instalación
 - [ ] **Fase 4** — Empaquetado pip
 - [ ] **Fase 5** — Extras
@@ -61,7 +61,7 @@ Checklist de tareas:
 
 ## Fase 2.5 — Configuración e identidad portable
 
-**Estado:** 🔍 Análisis completado (sesión 4 · 2026-06-15) · implementación pendiente
+**Estado:** ✅ Completada (análisis sesión 4, implementación sesión 5 · 2026-06-15)
 
 **Objetivo:** que la herramienta funcione igual desde cualquier equipo, disco o usuario. Separa dos preguntas que hoy dependen del entorno: *dónde viven los datos* (almacenamiento) y *quién es el proyecto* (identidad). Diseño completo en `ARCHITECTURE.md` §11.
 
@@ -76,16 +76,16 @@ Checklist de tareas:
 - [x] Precisar la regla "no escribir estado en el proyecto": el marcador `.cowork` (solo `id` + `name`) es etiqueta de identidad, no estado de sesiones; permitido y versionable.
 - [x] Documentar el diseño en `ARCHITECTURE.md` §11.
 
-### Etapa B — Implementación (pendiente)
+### Etapa B — Implementación (completada · sesión 5)
 
-- [ ] **Config JSON** en `~/.worklog/config.json` (o `WORKLOG_HOME`): clave `db_path`. Auto-creación con valores por defecto.
-- [ ] **Resolución de BD por capas:** `--db` → `WORKLOG_HOME` → `config.json` → default `~/.worklog/worklog.db`.
-- [ ] **Comando `config`:** muestra la ruta efectiva de la BD y de qué fuente salió; `config set-db <ruta>` la cambia.
-- [ ] **Esquema:** añadir `uid TEXT UNIQUE` a `projects`; `name` deja de ser clave; `path` pasa a informativo (última ruta vista). Migración idempotente.
-- [ ] **Marcador `.cowork`** (JSON con `id` + `name`): lo crea `init`/`start`; se busca subiendo directorios.
-- [ ] **Resolución de identidad por capas:** `.cowork` → URL del remoto Git → ruta (fallback con aviso de "no portable").
-- [ ] **Detección de duplicados:** `init` avisa si el `name` ya existe con otro `uid`; opción `--link <id>` para asociar.
-- [ ] Actualizar `AGENTS.md` (regla del marcador) y `README.md` (config e identidad).
+- [x] **Config JSON** en `~/.worklog/config.json` (o `WORKLOG_HOME`): clave `db_path`. Se crea con `config set-db` (no se auto-escribe al leer, para evitar escrituras sorpresa).
+- [x] **Resolución de BD por capas:** `--db` → `WORKLOG_HOME` → `config.json` → default `~/.worklog/worklog.db`.
+- [x] **Comando `config`:** muestra la ruta efectiva de la BD y de qué fuente salió; `config set-db <ruta>` la cambia.
+- [x] **Esquema:** añadido `uid TEXT` (UUID4) con índice único y `git_remote TEXT`; `path` pasa a informativo. Migración idempotente que rellena `uid` a proyectos existentes.
+- [x] **Marcador `.cowork`** (JSON con `id` + `name`): lo crean `init`/`start`; se busca subiendo directorios.
+- [x] **Resolución de identidad por capas:** `.cowork` → URL del remoto git (https/ssh normalizadas) → ruta. Lectura con `find_project`, creación con `ensure_project`.
+- [x] **Detección de duplicados:** `init` avisa si el `name` ya existe con otro `uid`; opción `--link <uid>` para asociar (acepta prefijo corto del uid).
+- [x] Actualizado `AGENTS.md` (reglas 1, 2, 4, 5) y `README.md` (config e identidad).
 
 **Criterio de aceptación:** registrar sesiones del mismo proyecto desde dos rutas/letras de unidad distintas y que cuenten como **un solo** proyecto; `cowork config` muestra claramente dónde está la BD.
 

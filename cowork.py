@@ -4,27 +4,70 @@ Solo biblioteca estándar de Python. Sin dependencias externas.
 """
 
 import argparse
+import json
 import os
 import sqlite3
+import subprocess
 import sys
+import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
-# Resolución de la carpeta de datos
+# Configuración y resolución de la BD (Fase 2.5)
+#
+# La carpeta de configuración (donde vive config.json) se resuelve con
+# WORKLOG_HOME o, por defecto, ~/.worklog. La ruta de la BD se resuelve por
+# capas: --db  >  WORKLOG_HOME  >  config.json[db_path]  >  default.
 # ---------------------------------------------------------------------------
 
-def get_data_dir() -> Path:
+# Anulación de la ruta de BD vía flag global --db; la fija main() al arrancar.
+_DB_OVERRIDE = None
+
+
+def get_config_dir() -> Path:
     env = os.environ.get("WORKLOG_HOME")
-    if env:
-        return Path(env)
-    return Path.home() / ".worklog"
+    return Path(env) if env else Path.home() / ".worklog"
+
+
+def get_config_path() -> Path:
+    return get_config_dir() / "config.json"
+
+
+def load_config() -> dict:
+    p = get_config_path()
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_config(cfg: dict) -> None:
+    d = get_config_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    get_config_path().write_text(
+        json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+
+def resolve_db():
+    """Devuelve (Path de la BD, fuente) según el orden de capas."""
+    if _DB_OVERRIDE:
+        return Path(_DB_OVERRIDE).expanduser(), "--db"
+    if os.environ.get("WORKLOG_HOME"):
+        return get_config_dir() / "worklog.db", "WORKLOG_HOME"
+    db_path = load_config().get("db_path")
+    if db_path:
+        return Path(db_path).expanduser(), "config.json"
+    return get_config_dir() / "worklog.db", "default"
 
 
 def get_db_path() -> Path:
-    return get_data_dir() / "worklog.db"
+    return resolve_db()[0]
 
 
 # ---------------------------------------------------------------------------
@@ -32,9 +75,9 @@ def get_db_path() -> Path:
 # ---------------------------------------------------------------------------
 
 def open_db() -> sqlite3.Connection:
-    data_dir = get_data_dir()
-    data_dir.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(get_db_path())
+    db_path = get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     _ensure_schema(conn)
@@ -68,6 +111,23 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_sessions_open
             ON sessions(project_id, end_at);
     """)
+    conn.commit()
+
+    # Migración Fase 2.5: identidad portable (uid estable + remoto git).
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
+    if "uid" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN uid TEXT")
+    if "git_remote" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN git_remote TEXT")
+    for r in conn.execute(
+        "SELECT id FROM projects WHERE uid IS NULL OR uid = ''"
+    ).fetchall():
+        conn.execute(
+            "UPDATE projects SET uid = ? WHERE id = ?", (str(uuid.uuid4()), r["id"])
+        )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_uid ON projects(uid)"
+    )
     conn.commit()
 
 
@@ -113,21 +173,143 @@ def current_path() -> str:
     return str(Path.cwd().resolve())
 
 
-def get_or_create_project(conn: sqlite3.Connection, path: str) -> sqlite3.Row:
-    row = conn.execute(
-        "SELECT * FROM projects WHERE path = ?", (path,)
-    ).fetchone()
-    if row:
-        return row
-    name = Path(path).name
-    conn.execute(
-        "INSERT INTO projects (path, name, created_at) VALUES (?, ?, ?)",
-        (path, name, now_iso()),
+MARKER_NAME = ".cowork"
+
+
+def short_uid(uid) -> str:
+    return (uid or "")[:8]
+
+
+def find_marker(start: str):
+    """Busca .cowork subiendo directorios. Devuelve (datos, ruta) o (None, None)."""
+    d = Path(start).resolve()
+    for cand in (d, *d.parents):
+        m = cand / MARKER_NAME
+        if m.is_file():
+            try:
+                return json.loads(m.read_text(encoding="utf-8")), m
+            except (json.JSONDecodeError, OSError):
+                return None, None
+    return None, None
+
+
+def write_marker(directory: str, uid: str, name: str) -> Path:
+    m = Path(directory) / MARKER_NAME
+    m.write_text(
+        json.dumps({"id": uid, "name": name}, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
     )
-    conn.commit()
-    return conn.execute(
-        "SELECT * FROM projects WHERE path = ?", (path,)
-    ).fetchone()
+    return m
+
+
+def normalize_remote(url: str) -> str:
+    """Normaliza la URL del remoto para que https y ssh del mismo repo coincidan."""
+    u = url.strip()
+    if u.endswith(".git"):
+        u = u[:-4]
+    u = u.rstrip("/")
+    if u.startswith("git@"):              # git@host:user/repo
+        u = "https://" + u[4:].replace(":", "/", 1)
+    elif "://" in u:                      # https://host/... o ssh://...
+        u = "https://" + u.split("://", 1)[1]
+    return u.lower()
+
+
+def git_remote(directory: str):
+    """URL normalizada del remoto 'origin', o None si no es repo git con remoto."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(directory), "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    return normalize_remote(out.stdout.strip())
+
+
+def _project_by_uid(conn, uid):
+    return conn.execute("SELECT * FROM projects WHERE uid = ?", (uid,)).fetchone()
+
+
+def find_project(conn):
+    """Resuelve el proyecto actual por capas (marcador → remoto git → ruta).
+    Solo lectura: no crea ni escribe marcador."""
+    path = current_path()
+    data, _ = find_marker(path)
+    if data and data.get("id"):
+        row = _project_by_uid(conn, data["id"])
+        if row:
+            return row
+    remote = git_remote(path)
+    if remote:
+        row = conn.execute(
+            "SELECT * FROM projects WHERE git_remote = ?", (remote,)
+        ).fetchone()
+        if row:
+            return row
+    return conn.execute("SELECT * FROM projects WHERE path = ?", (path,)).fetchone()
+
+
+def ensure_project(conn):
+    """Resuelve o crea el proyecto actual y fija el marcador .cowork.
+    Devuelve (row, fuente, marcador_creado)."""
+    path = current_path()
+    data, _ = find_marker(path)
+
+    # Capa 1: marcador .cowork presente.
+    if data and data.get("id"):
+        uid = data["id"]
+        name = data.get("name") or Path(path).name
+        row = _project_by_uid(conn, uid)
+        if row:
+            conn.execute("UPDATE projects SET path = ? WHERE id = ?", (path, row["id"]))
+            conn.commit()
+            return _project_by_uid(conn, uid), "marcador", False
+        # Marcador sin proyecto en esta BD (p.ej. repo clonado): crear con ese uid.
+        remote = git_remote(path)
+        conn.execute(
+            "INSERT INTO projects (path, name, created_at, uid, git_remote) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (path, name, now_iso(), uid, remote),
+        )
+        conn.commit()
+        return _project_by_uid(conn, uid), "marcador", False
+
+    # Sin marcador: adoptar por ruta (local/migración), luego por remoto, o crear.
+    remote = git_remote(path)
+    row = conn.execute("SELECT * FROM projects WHERE path = ?", (path,)).fetchone()
+    fuente = "ruta"
+    if not row and remote:
+        row = conn.execute(
+            "SELECT * FROM projects WHERE git_remote = ?", (remote,)
+        ).fetchone()
+        if row:
+            fuente = "remoto git"
+
+    if row:
+        uid, name = row["uid"], row["name"]
+        if remote and not row["git_remote"]:
+            conn.execute(
+                "UPDATE projects SET git_remote = ? WHERE id = ?", (remote, row["id"])
+            )
+        conn.execute("UPDATE projects SET path = ? WHERE id = ?", (path, row["id"]))
+        conn.commit()
+    else:
+        uid = str(uuid.uuid4())
+        name = Path(path).name
+        fuente = "nuevo"
+        conn.execute(
+            "INSERT INTO projects (path, name, created_at, uid, git_remote) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (path, name, now_iso(), uid, remote),
+        )
+        conn.commit()
+
+    # Fijar identidad portable escribiendo el marcador.
+    write_marker(path, uid, name)
+    return _project_by_uid(conn, uid), fuente, True
 
 
 def get_open_session(conn: sqlite3.Connection, project_id: int):
@@ -142,36 +324,62 @@ def get_open_session(conn: sqlite3.Connection, project_id: int):
 # ---------------------------------------------------------------------------
 
 def cmd_init(args) -> None:
-    path = current_path()
     with open_db() as conn:
-        existing = conn.execute(
-            "SELECT * FROM projects WHERE path = ?", (path,)
-        ).fetchone()
-        if existing:
-            old_name = existing["name"]
-            new_name = args.nombre or old_name
+        # --link: asocia el directorio actual a un proyecto existente por uid.
+        if getattr(args, "link", None):
+            target = _project_by_uid(conn, args.link)
+            if not target:
+                target = conn.execute(
+                    "SELECT * FROM projects WHERE uid LIKE ?", (args.link + "%",)
+                ).fetchone()
+            if not target:
+                print(f"No existe ningún proyecto con uid '{args.link}'.")
+                sys.exit(1)
+            path = current_path()
+            conn.execute("UPDATE projects SET path = ? WHERE id = ?", (path, target["id"]))
+            conn.commit()
+            write_marker(path, target["uid"], target["name"])
+            print(
+                f"Directorio enlazado al proyecto '{target['name']}' "
+                f"(uid {short_uid(target['uid'])}). Marcador {MARKER_NAME} escrito."
+            )
+            return
+
+        project, fuente, marcador_creado = ensure_project(conn)
+
+        if args.nombre and args.nombre != project["name"]:
+            dup = conn.execute(
+                "SELECT * FROM projects WHERE name = ? AND uid != ?",
+                (args.nombre, project["uid"]),
+            ).fetchone()
+            if dup:
+                print(
+                    f"Aviso: ya existe otro proyecto llamado '{args.nombre}' "
+                    f"(uid {short_uid(dup['uid'])}). Los nombres pueden repetirse; si es "
+                    f"el mismo proyecto, usa 'cowork init --link {short_uid(dup['uid'])}'."
+                )
+            old = project["name"]
             conn.execute(
-                "UPDATE projects SET name = ? WHERE path = ?", (new_name, path)
+                "UPDATE projects SET name = ? WHERE id = ?", (args.nombre, project["id"])
             )
             conn.commit()
-            if new_name != old_name:
-                print(f"Proyecto renombrado: '{old_name}' → '{new_name}'")
-            else:
-                print(f"Proyecto ya registrado: '{old_name}' ({path})")
+            write_marker(current_path(), project["uid"], args.nombre)
+            print(
+                f"Proyecto renombrado: '{old}' → '{args.nombre}' "
+                f"(uid {short_uid(project['uid'])})."
+            )
         else:
-            name = args.nombre or Path(path).name
-            conn.execute(
-                "INSERT INTO projects (path, name, created_at) VALUES (?, ?, ?)",
-                (path, name, now_iso()),
+            print(
+                f"Proyecto: '{project['name']}' · uid {short_uid(project['uid'])} "
+                f"· identidad por {fuente}."
             )
-            conn.commit()
-            print(f"Proyecto registrado: '{name}' ({path})")
+        if marcador_creado:
+            print(f"Marcador {MARKER_NAME} creado (versionable).")
 
 
 def cmd_start(args) -> None:
-    path = current_path()
     with open_db() as conn:
-        project = get_or_create_project(conn, path)
+        project, fuente, marcador_creado = ensure_project(conn)
         open_sess = get_open_session(conn, project["id"])
 
         if open_sess:
@@ -206,14 +414,17 @@ def cmd_start(args) -> None:
         conn.commit()
         model_str = f" ({model})" if model else ""
         print(f"Sesión iniciada — {args.agente}{model_str} en '{project['name']}'.")
+        print(f"  Identidad: uid {short_uid(project['uid'])} (por {fuente}).")
+        if marcador_creado:
+            print(
+                f"  Marcador {MARKER_NAME} creado (versionable; "
+                f"commitéalo para portar la identidad entre equipos)."
+            )
 
 
 def cmd_end(args) -> None:
-    path = current_path()
     with open_db() as conn:
-        project = conn.execute(
-            "SELECT * FROM projects WHERE path = ?", (path,)
-        ).fetchone()
+        project = find_project(conn)
         if not project:
             print("No hay proyecto registrado en esta ruta. Usa 'cowork start' primero.")
             sys.exit(1)
@@ -246,11 +457,8 @@ def cmd_end(args) -> None:
 
 
 def cmd_status(args) -> None:
-    path = current_path()
     with open_db() as conn:
-        project = conn.execute(
-            "SELECT * FROM projects WHERE path = ?", (path,)
-        ).fetchone()
+        project = find_project(conn)
         if not project:
             print("No hay proyecto registrado en esta ruta.")
             return
@@ -273,11 +481,8 @@ def cmd_status(args) -> None:
 
 
 def cmd_list(args) -> None:
-    path = current_path()
     with open_db() as conn:
-        project = conn.execute(
-            "SELECT * FROM projects WHERE path = ?", (path,)
-        ).fetchone()
+        project = find_project(conn)
         if not project:
             print("No hay proyecto registrado en esta ruta.")
             return
@@ -379,9 +584,7 @@ def cmd_report(args) -> None:
 def cmd_export(args) -> None:
     path = current_path()
     with open_db() as conn:
-        project = conn.execute(
-            "SELECT * FROM projects WHERE path = ?", (path,)
-        ).fetchone()
+        project = find_project(conn)
         if not project:
             print("No hay proyecto registrado en esta ruta.")
             sys.exit(1)
@@ -438,6 +641,29 @@ def cmd_export(args) -> None:
     print(f"Export generado: {out_path} ({total_sessions} sesiones).")
 
 
+def cmd_config(args) -> None:
+    if getattr(args, "config_cmd", None) == "set-db":
+        ruta = str(Path(args.ruta).expanduser())
+        cfg = load_config()
+        cfg["db_path"] = ruta
+        save_config(cfg)
+        print(f"Guardado en {get_config_path()}:")
+        print(f"  db_path = {ruta}")
+        return
+
+    # Sin subacción: mostrar la configuración efectiva.
+    db, fuente = resolve_db()
+    cfg_path = get_config_path()
+    existe_cfg = "" if cfg_path.exists() else "  (no existe aún)"
+    print("Configuración de cowork")
+    print(f"  Archivo config : {cfg_path}{existe_cfg}")
+    print(f"  BD efectiva    : {db}")
+    print(f"  Fuente         : {fuente}")
+    print(f"  BD existe      : {'sí' if db.exists() else 'no'}")
+    if os.environ.get("WORKLOG_HOME"):
+        print(f"  WORKLOG_HOME   : {os.environ['WORKLOG_HOME']}")
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -447,11 +673,16 @@ def build_parser() -> argparse.ArgumentParser:
         prog="cowork",
         description="Registro de sesiones de trabajo humano + IA.",
     )
+    parser.add_argument(
+        "--db", default=None,
+        help="Ruta explícita a la BD; anula WORKLOG_HOME y config.json.",
+    )
     sub = parser.add_subparsers(dest="comando", required=True)
 
     # init
     p_init = sub.add_parser("init", help="Registra o renombra el proyecto actual.")
     p_init.add_argument("nombre", nargs="?", default=None, help="Nombre del proyecto.")
+    p_init.add_argument("--link", default=None, help="Enlaza el directorio actual a un proyecto existente por uid.")
     p_init.set_defaults(func=cmd_init)
 
     # start
@@ -488,6 +719,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--path", default=None, help="Ruta de salida (default: <proyecto>/WORKLOG.md).")
     p_export.set_defaults(func=cmd_export)
 
+    # config
+    p_config = sub.add_parser("config", help="Muestra o cambia la configuración (ubicación de la BD).")
+    cfg_sub = p_config.add_subparsers(dest="config_cmd")
+    p_setdb = cfg_sub.add_parser("set-db", help="Fija la ruta de la BD en config.json.")
+    p_setdb.add_argument("ruta", help="Ruta del archivo de BD.")
+    p_config.set_defaults(func=cmd_config)
+
     return parser
 
 
@@ -497,6 +735,8 @@ def main() -> None:
         sys.stderr.reconfigure(encoding="utf-8")
     parser = build_parser()
     args = parser.parse_args()
+    global _DB_OVERRIDE
+    _DB_OVERRIDE = args.db
     args.func(args)
 
 
