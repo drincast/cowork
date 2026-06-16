@@ -10,7 +10,7 @@
 - [x] **Fase 1** — Núcleo funcional (MVP) · completada en sesión 2 (2026-06-14)
 - [x] **Fase 2** — Consultas y export · completada en sesión 3 (2026-06-15)
 - [x] **Fase 2.5** — Configuración e identidad portable · completada en sesión 5 (2026-06-15)
-- [ ] **Fase 3** — Ergonomía de instalación
+- [x] **Fase 3** — Ergonomía de instalación · completada en sesión 6 (2026-06-15)
 - [ ] **Fase 4** — Empaquetado pip
 - [ ] **Fase 5** — Extras
 
@@ -93,15 +93,15 @@ Checklist de tareas:
 
 ## Fase 3 — Ergonomía de instalación
 
-**Estado:** ⬜ Pendiente
+**Estado:** ✅ Completada (sesión 6 · 2026-06-15)
 
 **Objetivo:** que `cowork` sea invocable globalmente y que el agente sepa usarlo.
 
 Checklist de tareas:
 
-- [ ] Instrucciones para añadir `cowork` al PATH en Windows, Linux y macOS (script directo, sin paquete).
-- [ ] Reescribir la guía para el agente (sucesor de `COWORK.md`): explica cuándo correr `start` y `end`, con ejemplos. Debe ser breve para minimizar lectura del agente.
-- [ ] Soporte de la variable `WORKLOG_HOME` documentado.
+- [x] Lanzadores `bin/cowork.cmd` (Windows) y `bin/cowork` (POSIX) que conservan la carpeta actual; instrucciones de PATH para Windows, Linux y macOS en el README (script directo, sin paquete).
+- [x] Guía breve para el agente (`USAGE.md`, sucesor de `COWORK.md`): cuándo correr `start`/`end`, con ejemplos.
+- [x] Soporte de la variable `WORKLOG_HOME` documentado (README, sección de instalación y de configuración).
 
 **Criterio de aceptación:** desde cualquier carpeta, `cowork status` funciona sin ruta completa al script.
 

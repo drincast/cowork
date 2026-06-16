@@ -38,7 +38,38 @@ git clone https://github.com/drincastX/cowork.git
 python cowork.py start "Claude Code" "claude-opus-4-8"
 ```
 
-Para invocarlo como `cowork` desde cualquier carpeta, consulta la Fase 3 en `docs/PLAN.md`.
+### Invocar `cowork` desde cualquier carpeta
+
+El repo trae lanzadores en `bin/` para no escribir `python ...\cowork.py` cada vez. Agrega esa carpeta `bin/` al PATH **una sola vez** por equipo.
+
+**Windows** (PowerShell, persistente para tu usuario; reemplaza la ruta):
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  "Path", $env:Path + ";C:\ruta\a\cowork\bin", "User")
+```
+
+Abre una terminal nueva y ya puedes ejecutar `cowork ...` desde cualquier carpeta.
+
+**Linux / macOS** (bash o zsh; reemplaza la ruta):
+
+```bash
+chmod +x /ruta/a/cowork/bin/cowork
+echo 'export PATH="$PATH:/ruta/a/cowork/bin"' >> ~/.bashrc   # o ~/.zshrc
+source ~/.bashrc
+```
+
+Verifica desde cualquier carpeta:
+
+```bash
+cowork status
+```
+
+> Los lanzadores conservan tu carpeta actual: cowork identifica el proyecto por **dónde estás parado**, no por dónde vive el script.
+
+### Mover la base de datos (`WORKLOG_HOME`)
+
+Por defecto la BD vive en `~/.worklog/worklog.db`. Si quieres llevarla en un disco externo o carpeta sincronizada (para usarla desde varios equipos), define la variable `WORKLOG_HOME` apuntando a esa carpeta, o fija la ruta con `cowork config set-db <ruta>`. Ver la sección **Configuración e identidad**.
 
 ---
 
@@ -84,8 +115,10 @@ python cowork.py config set-db "D:\datos\worklog.db" # fija la ruta en config.js
 
 ## Documentación
 
+- [`USAGE.md`](USAGE.md) — guía breve para registrar el tiempo con cowork (para el agente).
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — diseño del sistema y decisiones técnicas.
 - [`docs/PLAN.md`](docs/PLAN.md) — plan de ejecución por fases con checklist de progreso.
+- [`docs/manual-tests/`](docs/manual-tests/) — guías de prueba manual en entorno aislado.
 - [`AGENTS.md`](AGENTS.md) — instrucciones para el agente de código.
 - [`DEVLOG.md`](DEVLOG.md) — registro de desarrollo sesión a sesión.
 
@@ -96,7 +129,8 @@ python cowork.py config set-db "D:\datos\worklog.db" # fija la ruta en config.js
 - **Fase 1 completada** — `init`, `start`, `end`, `status` con SQLite.
 - **Fase 2 completada** — `list`, `report`, `export`.
 - **Fase 2.5 completada** — configuración de la BD (`config`) e identidad de proyecto portable (`.cowork` / remoto git).
-- Siguiente: Fase 3 (invocar `cowork` desde cualquier carpeta).
+- **Fase 3 completada** — `cowork` invocable desde cualquier carpeta (lanzadores en `bin/` + PATH) y guía de uso para el agente.
+- Siguiente: Fase 4 (empaquetado con pipx).
 
 ---
 

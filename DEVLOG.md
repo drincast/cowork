@@ -5,6 +5,35 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-06-15 | Sesión 6 | Fase 3 — Ergonomía + guía de pruebas
+
+### Tareas realizadas
+
+- **Invocación global de `cowork`**
+  Lanzadores `bin/cowork.cmd` (Windows) y `bin/cowork` (Linux/macOS) que llaman a `cowork.py` conservando la carpeta actual. Instrucciones de PATH para los tres sistemas en el README. Verificado: `cowork status` funciona desde cualquier carpeta.
+
+- **Guía para el agente (`USAGE.md`)**
+  Sucesor de `COWORK.md`: explica de forma breve cuándo correr `start`/`end`, con ejemplos. Pensada para minimizar lectura del agente.
+
+- **Refuerzo de `WORKLOG_HOME`**
+  Documentado en el README (instalación y configuración) para llevar la BD a un disco externo o carpeta sincronizada.
+
+- **Guías de prueba manual (`docs/manual-tests/`)**
+  `README.md` (índice + propósito) y `portable-identity.md` (con encabezado de alcance: propósito, alcance, fuera de alcance). Aclara que NO son la suite automatizada (esa será de Fase 5, en `tests/`).
+
+- **Dogfooding: `.cowork` del propio repo**
+  Al iniciar la sesión, `cowork start` creó el marcador `.cowork` del repo y fijó su `git_remote`.
+
+- **Convención de nombres confirmada**
+  Carpetas y archivos en inglés; código fuente en inglés; comentarios de código en español; contenido de documentos en español.
+
+### Pendiente para próxima sesión
+
+- **Push** del commit de Fase 2.5 (`1775e92`) y de los de esta sesión a `origin/main`.
+- Iniciar Fase 4: empaquetado con `pipx` (`pyproject.toml` con entry point `cowork`).
+
+---
+
 ## 2026-06-15 | Sesión 5 | Fase 2.5 Etapa B — Implementación
 
 ### Tareas realizadas

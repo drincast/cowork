@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Lanzador de cowork para Linux/macOS. Ejecuta el script con Python conservando
+# la carpeta actual (el proyecto se identifica por donde estes).
+exec python3 "$(dirname "$0")/../cowork.py" "$@"
