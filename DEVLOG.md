@@ -5,6 +5,36 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-06-15 | Sesión 7 | Fase 4 — Empaquetado (instalación local)
+
+### Tareas realizadas
+
+- **`pyproject.toml`**
+  Backend `setuptools`, módulo único (`py-modules = ["cowork"]`), entry point `cowork = "cowork:main"` y versión `0.1.0`. Sin dependencias de ejecución (solo build).
+
+- **Verificación en venv aislado**
+  `pip install .` construyó `cowork-0.1.0-py3-none-any.whl` y creó el comando `cowork`; `cowork --help` y `cowork config` corrieron correctamente. La instalación no tocó el Python global ni la BD real.
+
+- **`.gitignore`**
+  Se ignoran artefactos de build (`build/`, `dist/`, `*.egg-info/`).
+
+- **Documentación**
+  README con sección de `pipx install .` (vía recomendada) y los lanzadores `bin/` como alternativa. PLAN: Fase 4 completada.
+
+- **Decisión: publicación en PyPI a una fase aparte**
+  Se separó la publicación pública a una nueva **Fase 6** (final), dejando la Fase 4 acotada a instalación local. Versión semántica inicial `0.1.0`.
+
+- **Aclaración Fase 3 vs Fase 4**
+  No se solapan en vano: los lanzadores `bin/` (Fase 3) son el respaldo sin herramientas de empaquetado; pipx (Fase 4) es la vía recomendada. Conviven.
+
+### Pendiente para próxima sesión
+
+- El usuario debe instalar `pipx` (no estaba) y ejecutar `pipx install .` para tener el comando global por esa vía.
+- Commit y push de Fase 4.
+- Fase 5 (extras) o Fase 6 (PyPI) cuando se decida.
+
+---
+
 ## 2026-06-15 | Sesión 6 | Fase 3 — Ergonomía + guía de pruebas
 
 ### Tareas realizadas

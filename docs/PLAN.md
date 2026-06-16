@@ -11,8 +11,9 @@
 - [x] **Fase 2** — Consultas y export · completada en sesión 3 (2026-06-15)
 - [x] **Fase 2.5** — Configuración e identidad portable · completada en sesión 5 (2026-06-15)
 - [x] **Fase 3** — Ergonomía de instalación · completada en sesión 6 (2026-06-15)
-- [ ] **Fase 4** — Empaquetado pip
+- [x] **Fase 4** — Empaquetado pip (instalación local) · completada en sesión 7 (2026-06-15)
 - [ ] **Fase 5** — Extras
+- [ ] **Fase 6** — Publicación en PyPI (final)
 
 > Leyenda: `[x]` completada · `[ ]` pendiente. El detalle de tareas de cada fase está en su checklist más abajo.
 
@@ -107,20 +108,23 @@ Checklist de tareas:
 
 ---
 
-## Fase 4 — Empaquetado pip (evolución)
+## Fase 4 — Empaquetado pip (instalación local)
 
-**Estado:** ⬜ Pendiente
+**Estado:** ✅ Completada (sesión 7 · 2026-06-15)
 
-**Objetivo:** instalación profesional reproducible.
+**Objetivo:** instalación local reproducible con `pipx install .`. (La publicación en PyPI se separó a la Fase 6.)
 
 Checklist de tareas:
 
-- [ ] `pyproject.toml` con entry point de consola `cowork`.
-- [ ] Instalable con `pipx install`.
-- [ ] Versionado semántico.
-- [ ] Configuración opcional en `~/.worklog/config.toml`: autor por defecto, `auto_export`, formato de fecha.
+- [x] `pyproject.toml` con entry point de consola `cowork` (backend `setuptools`, módulo único `cowork.py`).
+- [x] Construible/instalable: verificado con `pip install .` en venv aislado (genera `cowork-0.1.0-py3-none-any.whl` y el comando `cowork`). `pipx install .` requiere que el usuario tenga `pipx`.
+- [x] Versionado semántico: arranca en `0.1.0`.
+- [x] Configuración: ya resuelta en Fase 2.5 con `config.json` (capas `--db`/`WORKLOG_HOME`/`config.json`); no se usa `config.toml`.
+- [x] `.gitignore` con artefactos de build (`build/`, `dist/`, `*.egg-info/`).
 
-**Criterio de aceptación:** `pipx install .` deja el comando `cowork` disponible en el sistema.
+**Nota:** la instalación con pipx coexiste con los lanzadores `bin/` de la Fase 3; pipx es la vía recomendada, `bin/` el respaldo sin herramientas de empaquetado.
+
+**Criterio de aceptación:** `pipx install .` deja el comando `cowork` disponible (cumplido a nivel de paquete; el usuario instala `pipx` una vez).
 
 ---
 
@@ -131,9 +135,29 @@ Checklist de tareas:
 Checklist de tareas candidatas:
 
 - [ ] **Import del histórico:** parsear el `WORKLOG.md` actual (3 sesiones) y cargarlo en SQLite, para no perder el registro previo.
-- [ ] Pruebas automatizadas (`unittest` o `pytest`).
+- [ ] Pruebas automatizadas (`unittest` o `pytest`) en `tests/`.
 - [ ] Binario standalone con PyInstaller para máquinas sin Python.
 - [ ] Export adicional a CSV/JSON para análisis externo.
+
+---
+
+## Fase 6 — Publicación en PyPI (final)
+
+**Estado:** ⬜ Pendiente
+
+**Objetivo:** que cualquiera pueda `pipx install cowork` desde internet.
+
+Checklist de tareas:
+
+- [ ] Verificar que el nombre `cowork` esté disponible en PyPI (si no, elegir alternativa).
+- [ ] Cuenta en PyPI (y TestPyPI para ensayar) con token de API.
+- [ ] Construir artefactos: `python -m build` (genera `sdist` + `wheel` en `dist/`).
+- [ ] Subir con `twine upload` (primero a TestPyPI, luego a PyPI).
+- [ ] Completar metadatos para la ficha pública (descripción larga = README, clasificadores, URLs).
+
+**Criterio de aceptación:** `pipx install cowork` funciona en una máquina limpia con acceso a internet.
+
+> Es una acción **pública y permanente**: una versión publicada no se puede sobrescribir. Se hace solo cuando se decida liberar.
 
 ---
 

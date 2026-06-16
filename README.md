@@ -38,9 +38,24 @@ git clone https://github.com/drincastX/cowork.git
 python cowork.py start "Claude Code" "claude-opus-4-8"
 ```
 
-### Invocar `cowork` desde cualquier carpeta
+### Opción recomendada: instalar con pipx
 
-El repo trae lanzadores en `bin/` para no escribir `python ...\cowork.py` cada vez. Agrega esa carpeta `bin/` al PATH **una sola vez** por equipo.
+[pipx](https://pipx.pypa.io) instala la herramienta en un entorno aislado y crea el comando `cowork` en el sistema. Una vez instalado pipx:
+
+```bash
+# Instala pipx una sola vez (si no lo tienes)
+python -m pip install --user pipx
+python -m pipx ensurepath        # abre una terminal nueva después
+
+# Desde la carpeta del repo
+pipx install .
+```
+
+A partir de ahí, `cowork ...` funciona desde cualquier carpeta. Para actualizar tras cambios: `pipx install . --force`.
+
+### Alternativa sin pipx: lanzadores en `bin/`
+
+Si prefieres no usar pipx, el repo trae lanzadores en `bin/`. Agrega esa carpeta `bin/` al PATH **una sola vez** por equipo.
 
 **Windows** (PowerShell, persistente para tu usuario; reemplaza la ruta):
 
@@ -130,7 +145,8 @@ python cowork.py config set-db "D:\datos\worklog.db" # fija la ruta en config.js
 - **Fase 2 completada** — `list`, `report`, `export`.
 - **Fase 2.5 completada** — configuración de la BD (`config`) e identidad de proyecto portable (`.cowork` / remoto git).
 - **Fase 3 completada** — `cowork` invocable desde cualquier carpeta (lanzadores en `bin/` + PATH) y guía de uso para el agente.
-- Siguiente: Fase 4 (empaquetado con pipx).
+- **Fase 4 completada** — empaquetado con `pyproject.toml`, instalable con `pipx install .` (versión 0.1.0).
+- Siguiente: Fase 5 (extras) y Fase 6 (publicación en PyPI).
 
 ---
 
