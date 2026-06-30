@@ -12,8 +12,11 @@
 - [x] **Fase 2.5** — Configuración e identidad portable · completada en sesión 5 (2026-06-15)
 - [x] **Fase 3** — Ergonomía de instalación · completada en sesión 6 (2026-06-15)
 - [x] **Fase 4** — Empaquetado pip (instalación local) · completada en sesión 7 (2026-06-15)
-- [ ] **Fase 5** — Extras
-- [ ] **Fase 6** — Publicación en PyPI (final)
+- [ ] **Fase 5** — Portabilidad inicial de la BD + campos opcionales (avance parcial de la normalización de agentes/modelos, Fase 7)
+- [ ] **Fase 6** — Pruebas automatizadas
+- [ ] **Fase 7** — Normalización de agentes y modelos (tablas + FK)
+- [ ] **Fase 8** — Extras
+- [ ] **Fase 9** — Publicación en PyPI (final)
 
 > Leyenda: `[x]` completada · `[ ]` pendiente. El detalle de tareas de cada fase está en su checklist más abajo.
 
@@ -128,20 +131,112 @@ Checklist de tareas:
 
 ---
 
-## Fase 5 — Extras (futuro)
+## Fase 5 — Portabilidad inicial de la BD + campos opcionales
+
+**Estado:** ⬜ Pendiente (diseño acordado en sesión de análisis · 2026-06-30)
+
+**Objetivo:** dar el primer paso hacia trabajar el mismo proyecto desde varios equipos
+sin que se cree una BD vacía "fantasma" en cada uno. La estrategia inicial es **manual y
+explícita**: llevar la BD en un disco externo (EHD/USB) y que cada equipo apunte a esa
+ruta vía `config.json`. En paralelo, habilitar trabajo individual (humano solo) haciendo
+opcionales los campos `agent`/`model`.
+
+> **Meta a futuro (no en esta fase):** sincronización automática de la BD entre equipos.
+> Aún sin diseño; por ahora la portabilidad es manual mediante disco externo + `config set-db`.
+
+### Etapa A — Portabilidad inicial de la BD (idea 1)
+
+- [ ] **Resumen al ejecutar `init` y `start`:** indicar si el proyecto es nuevo o existente,
+      la ruta efectiva de la BD y su fuente (`--db` / `WORKLOG_HOME` / `config.json` / default).
+- [ ] **No crear BD "fantasma":** si la ruta de BD resuelta **no existe** en el sistema
+      (disco desconectado, o proyecto nuevo sin ruta seteada), **avisar y parar** con un
+      mensaje guía que incluya el comando de ejemplo:
+      `La BD configurada en '<ruta>' no está disponible. Conéctala o ejecuta: cowork config set-db <ruta>`.
+      Hoy `open_db()` crea la BD y el esquema sin avisar; hay que distinguir
+      "crear por primera vez intencional" de "ruta ausente inesperada".
+- [ ] **La ruta de la BD vive en `config.json` local**, no en el `.cowork` versionado
+      (regla de Fase 2.5: `.cowork` es identidad, no estado local per-máquina). El campo
+      `db_path` ya existe; esta fase añade la **validación de existencia** antes de operar.
+- [ ] **Sin** detección automática de unidades ni etiquetas de volumen en esta fase
+      (anotado para más adelante; ver "Pendientes anotados").
+
+### Etapa B — Campos opcionales: trabajo individual (avance parcial de idea 2)
+
+- [ ] **Esquema:** `sessions.agent` pasa de `NOT NULL` a **nullable** (migración idempotente,
+      sin tablas nuevas todavía). `model` ya es nullable.
+- [ ] **`start` con agente opcional:** permitir abrir sesión sin agente para registrar
+      trabajo solo-humano. Decidir la forma (posicional opcional o flag) sin romper la
+      sintaxis actual `cowork start <agente> [modelo]`.
+- [ ] **Formateo de salida tolerante a NULL:** `list`, `status`, `export` y `end` imprimen
+      `agent` directo; con `agent` nulo deben mostrar `—` (o etiqueta tipo "individual"),
+      igual que ya se hace con `model`. **El SQL de `report` no cambia** (no agrupa por
+      agente; agrupa por proyecto/mes/modelo y `model` ya tolera NULL).
+
+**Criterio de aceptación:** (a) con la BD en un disco externo desconectado, `cowork start`
+avisa y no crea una BD vacía; (b) `cowork start` sin agente registra una sesión individual
+y `list`/`export` la muestran sin imprimir `None`.
+
+### Pendientes anotados (futuro, fuera de esta fase)
+
+- [ ] **Multiplataforma:** la ruta por defecto `[UNIDAD]:\Users\[USUARIO]\.worklog\` es
+      solo-Windows. Definir comportamiento en Linux / macOS / Android.
+- [ ] **Identificación de unidad por etiqueta de volumen:** resolver la letra de unidad a
+      partir del nombre del volumen (ej. `COWORK_USB`), para que la ruta no dependa de la
+      letra asignada por el SO.
+- [ ] **Sincronización automática** de la BD entre equipos (meta de largo plazo).
+
+---
+
+## Fase 6 — Pruebas automatizadas
+
+**Estado:** ⬜ Pendiente
+
+**Objetivo:** blindar el core antes de seguir agregando funcionalidad. Tras las Fases 5
+y, sobre todo, la 7 (migración de esquema), conviene tener una red de seguridad.
+
+Checklist de tareas:
+
+- [ ] Suite con `unittest` o `pytest` en `tests/`, ejecutable sobre una BD temporal aislada.
+- [ ] Cubrir el ciclo `start`/`end`/`status`, cálculo de duración, resolución de BD por capas
+      y resolución de identidad (`.cowork` / remoto git / ruta).
+- [ ] Cubrir los casos de Fase 5: BD ausente (avisar y parar) y sesión individual (agente null).
+
+---
+
+## Fase 7 — Normalización de agentes y modelos (tablas + FK)
+
+**Estado:** ⬜ Pendiente · **cambio grande** (toca esquema, migración y varias consultas)
+
+**Objetivo:** completar la idea 2. Pasar de texto libre a un catálogo normalizado, para
+integridad referencial, evitar typos y reutilizar identificadores de modelo.
+
+Checklist de tareas:
+
+- [ ] Tablas nuevas `agents(id, name)` y `models(id, name[, agent_id])`.
+- [ ] `sessions.agent`/`model` (texto) → `sessions.agent_id`/`model_id` (**FK nullable**).
+- [ ] **Migración idempotente** que pueble `agents`/`models` con los valores de texto
+      distintos ya existentes y reconecte cada sesión a su FK.
+- [ ] `report`, `list`, `export` y `status` pasan a hacer **JOIN** en vez de leer la columna.
+- [ ] Posibles comandos de catálogo (`agents`/`models` para listar/renombrar) — a evaluar.
+
+**Criterio de aceptación:** las sesiones existentes quedan reconectadas a sus agentes/modelos
+por FK; `report --model` sigue dando los mismos totales que antes de la migración.
+
+---
+
+## Fase 8 — Extras (futuro)
 
 **Estado:** ⬜ Pendiente
 
 Checklist de tareas candidatas:
 
 - [ ] **Import del histórico:** parsear el `WORKLOG.md` actual (3 sesiones) y cargarlo en SQLite, para no perder el registro previo.
-- [ ] Pruebas automatizadas (`unittest` o `pytest`) en `tests/`.
 - [ ] Binario standalone con PyInstaller para máquinas sin Python.
 - [ ] Export adicional a CSV/JSON para análisis externo.
 
 ---
 
-## Fase 6 — Publicación en PyPI (final)
+## Fase 9 — Publicación en PyPI (final)
 
 **Estado:** ⬜ Pendiente
 

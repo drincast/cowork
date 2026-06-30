@@ -5,6 +5,72 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-06-30 | Sesión 8 | Planeación — Replanificación de fases 5 a 9 (sin implementación)
+
+### Naturaleza de la sesión
+
+Sesión **solo de análisis y planeación**. No se tocó `cowork.py` ni el core; el objetivo fue
+encaminar dos inconvenientes/ideas del usuario y dejar el plan reorganizado antes de implementar.
+
+### Contexto: dos ideas a analizar
+
+1. **Portabilidad de la BD** entre equipos. El problema observado: en cada PC se crea una BD
+   "fantasma" vacía en la ruta por defecto (`[UNIDAD]:\Users\[USUARIO]\.worklog\worklog.db`),
+   sin los registros previos. La meta a futuro es sincronización automática (aún sin diseño);
+   el paso inicial acordado es manual: llevar la BD en un disco externo y apuntar cada equipo
+   a esa ruta vía `config.json`.
+2. **Estructura de agentes/modelos:** pasar de texto libre a tablas normalizadas con FK
+   nullable, para habilitar trabajo individual (humano solo) sin agente/modelo.
+
+### Decisiones tomadas
+
+- **Idea 1 → Fase 5 (Etapa A).** Enfoque manual y explícito, sin que la app detecte unidades:
+  - `init`/`start` mostrarán un **resumen** (proyecto nuevo o no, ruta efectiva de la BD y su fuente).
+  - **No crear BD "fantasma":** si la ruta resuelta no existe (disco desconectado o proyecto
+    nuevo sin ruta), **avisar y parar** con mensaje guía que incluye el comando de ejemplo
+    `cowork config set-db <ruta>`. Sin prompt interactivo.
+  - La ruta de la BD vive en **`config.json` local**, NO en el `.cowork` versionado
+    (se respetó la regla de Fase 2.5: `.cowork` es identidad, no estado per-máquina; meterle
+    la ruta causaría conflictos de merge entre equipos).
+- **Avance parcial de Idea 2 → Fase 5 (Etapa B).** Hacer `sessions.agent` **nullable**
+  (migración idempotente, sin tablas nuevas todavía) y `start` con agente opcional. El SQL de
+  `report` **no cambia** (no agrupa por agente; `model` ya tolera NULL); solo se ajusta el
+  formateo de salida en `list`/`status`/`export`/`end` para mostrar `—` en vez de `None`.
+- **Idea 2 completa → Fase 7.** Normalización con tablas `agents`/`models`, FK nullable,
+  migración del texto a IDs y JOINs. Se reconoce como cambio grande y se separa para mantener
+  el core estable.
+- **Reordenamiento de fases:** 5 = portabilidad inicial + campos opcionales · 6 = pruebas
+  automatizadas (antes "extras") · 7 = normalización agentes/modelos · 8 = extras restantes
+  (import histórico, PyInstaller, export CSV/JSON) · 9 = publicación PyPI (final).
+
+### Hallazgo verificado
+
+- `config.json` es código real (`load_config`/`save_config`/`cmd_config`) pero **el archivo no
+  existe** en la máquina del usuario: solo se crea al ejecutar `cowork config set-db`. Se revisó
+  `~/.worklog/` y solo contiene `worklog.db`. Es comportamiento intencional de Fase 2.5
+  (no auto-escribir al leer), no un bug.
+
+### Pendientes anotados (futuro, fuera de fase asignada)
+
+- **Multiplataforma:** la ruta por defecto es solo-Windows; definir comportamiento en
+  Linux / macOS / Android.
+- **Identificación de unidad por etiqueta de volumen:** resolver la letra a partir del nombre
+  del volumen (ej. `COWORK_USB`) para no depender de la letra que asigne el SO. Se explicó el
+  concepto al usuario; se aplaza.
+- **Sincronización automática** de la BD entre equipos (meta de largo plazo, sin diseño).
+
+### Archivos modificados
+
+- `docs/PLAN.md`: reorganización de fases 5 a 9 con sus checklists y criterios de aceptación.
+- `DEVLOG.md`: esta entrada.
+
+### Pendiente para próxima sesión
+
+- Implementar Fase 5 (Etapa A portabilidad + Etapa B campos opcionales).
+- Commit de la replanificación (PLAN + DEVLOG).
+
+---
+
 ## 2026-06-15 | Sesión 7 | Fase 4 — Empaquetado (instalación local)
 
 ### Tareas realizadas
