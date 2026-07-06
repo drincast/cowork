@@ -118,7 +118,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             project_id  INTEGER NOT NULL REFERENCES projects(id),
             author      TEXT NOT NULL DEFAULT 'drincast',
-            agent       TEXT NOT NULL,
+            agent       TEXT,
             model       TEXT,
             start_at    TEXT NOT NULL,
             end_at      TEXT,
@@ -149,6 +149,38 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_uid ON projects(uid)"
     )
     conn.commit()
+
+    # Migración Fase 5 (Etapa B): sessions.agent pasa de NOT NULL a nullable,
+    # para registrar trabajo solo-humano (sin agente). SQLite no permite quitar
+    # NOT NULL con ALTER, así que se reconstruye la tabla de forma idempotente.
+    agent_col = next(
+        (r for r in conn.execute("PRAGMA table_info(sessions)") if r["name"] == "agent"),
+        None,
+    )
+    if agent_col is not None and agent_col["notnull"] == 1:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript("""
+            CREATE TABLE sessions_new (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id  INTEGER NOT NULL REFERENCES projects(id),
+                author      TEXT NOT NULL DEFAULT 'drincast',
+                agent       TEXT,
+                model       TEXT,
+                start_at    TEXT NOT NULL,
+                end_at      TEXT,
+                summary     TEXT
+            );
+            INSERT INTO sessions_new
+                (id, project_id, author, agent, model, start_at, end_at, summary)
+            SELECT id, project_id, author, agent, model, start_at, end_at, summary
+            FROM sessions;
+            DROP TABLE sessions;
+            ALTER TABLE sessions_new RENAME TO sessions;
+            CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_open ON sessions(project_id, end_at);
+        """)
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +364,11 @@ def ensure_project(conn):
     return _project_by_uid(conn, uid), fuente, True
 
 
+def fmt_agent(agent) -> str:
+    """Etiqueta legible del agente; 'individual' cuando es trabajo solo-humano (NULL)."""
+    return agent if agent else "individual"
+
+
 def db_summary_line() -> str:
     """Línea de resumen con la ruta efectiva de la BD y su fuente (Fase 5)."""
     path, source = resolve_db()
@@ -432,7 +469,7 @@ def cmd_start(args) -> None:
                 elapsed = elapsed_display(open_sess["start_at"])
                 print(
                     f"Ya hay una sesión abierta en este proyecto.\n"
-                    f"  Agente : {open_sess['agent']}\n"
+                    f"  Agente : {fmt_agent(open_sess['agent'])}\n"
                     f"  Inicio : {started}\n"
                     f"  Tiempo : {elapsed}\n"
                     f"\nCiérrala con 'cowork end' o usa 'cowork start --force' para auto-cerrarla."
@@ -447,17 +484,18 @@ def cmd_start(args) -> None:
                 )
                 conn.commit()
                 print(
-                    f"Sesión anterior auto-cerrada ({mins:.0f} min): {open_sess['agent']}."
+                    f"Sesión anterior auto-cerrada ({mins:.0f} min): {fmt_agent(open_sess['agent'])}."
                 )
 
+        agent = args.agente or None
         model = args.modelo or None
         conn.execute(
             "INSERT INTO sessions (project_id, agent, model, start_at) VALUES (?, ?, ?, ?)",
-            (project["id"], args.agente, model, now_iso()),
+            (project["id"], agent, model, now_iso()),
         )
         conn.commit()
         model_str = f" ({model})" if model else ""
-        print(f"Sesión iniciada — {args.agente}{model_str} en '{project['name']}'.")
+        print(f"Sesión iniciada — {fmt_agent(agent)}{model_str} en '{project['name']}'.")
         print(f"  Identidad: uid {short_uid(project['uid'])} (por {fuente}).")
         print(db_summary_line())
         if marcador_creado:
@@ -493,7 +531,7 @@ def cmd_end(args) -> None:
         started = parse_iso(open_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
         print(
             f"Sesión cerrada.\n"
-            f"  Agente   : {open_sess['agent']}\n"
+            f"  Agente   : {fmt_agent(open_sess['agent'])}\n"
             f"  Inicio   : {started}\n"
             f"  Duración : {duracion} ({mins:.1f} min)"
         )
@@ -520,7 +558,7 @@ def cmd_status(args) -> None:
         print(
             f"Proyecto  : {project['name']}\n"
             f"Sesión    : ABIERTA\n"
-            f"Agente    : {open_sess['agent']}{model_str}\n"
+            f"Agente    : {fmt_agent(open_sess['agent'])}{model_str}\n"
             f"Inicio    : {started}\n"
             f"Transcurrido : {elapsed}"
         )
@@ -559,8 +597,9 @@ def cmd_list(args) -> None:
                 fin = "— (abierta)"
                 dur = elapsed_display(r["start_at"])
             modelo = r["model"] or "—"
+            agente = fmt_agent(r["agent"])
             print(
-                f"{r['id']:>3}  {r['agent']:<14.14} {modelo:<20.20} "
+                f"{r['id']:>3}  {agente:<14.14} {modelo:<20.20} "
                 f"{inicio:<16} {fin:<16} {dur:>9}"
             )
 
@@ -674,7 +713,7 @@ def cmd_export(args) -> None:
         fin = parse_iso(s["end_at"]).strftime("%Y-%m-%d %H:%M")
         dur = fmt_duration(duration_minutes(s["start_at"], s["end_at"]))
         modelo = s["model"] or "—"
-        lines.append(f"### {inicio} · {s['agent']}")
+        lines.append(f"### {inicio} · {fmt_agent(s['agent'])}")
         lines.append("")
         lines.append(f"- Modelo: {modelo}")
         lines.append(f"- Inicio: {inicio}")
@@ -735,7 +774,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # start
     p_start = sub.add_parser("start", help="Abre una sesión de trabajo.")
-    p_start.add_argument("agente", help='Nombre del agente, ej: "Claude Code".')
+    p_start.add_argument("agente", nargs="?", default=None, help='Nombre del agente, ej: "Claude Code". Omítelo para registrar trabajo solo-humano (individual).')
     p_start.add_argument("modelo", nargs="?", default=None, help='ID del modelo, ej: "claude-opus-4-8".')
     p_start.add_argument("--force", action="store_true", help="Auto-cierra sesión previa si existe.")
     p_start.set_defaults(func=cmd_start)

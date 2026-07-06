@@ -12,7 +12,7 @@
 - [x] **Fase 2.5** — Configuración e identidad portable · completada en sesión 5 (2026-06-15)
 - [x] **Fase 3** — Ergonomía de instalación · completada en sesión 6 (2026-06-15)
 - [x] **Fase 4** — Empaquetado pip (instalación local) · completada en sesión 7 (2026-06-15)
-- [ ] **Fase 5** — Portabilidad inicial de la BD + campos opcionales (avance parcial de la normalización de agentes/modelos, Fase 7)
+- [x] **Fase 5** — Portabilidad inicial de la BD + campos opcionales · completada en sesión 9 (2026-07-05)
 - [ ] **Fase 6** — Pruebas automatizadas
 - [ ] **Fase 7** — Normalización de agentes y modelos (tablas + FK)
 - [ ] **Fase 8** — Extras
@@ -133,7 +133,7 @@ Checklist de tareas:
 
 ## Fase 5 — Portabilidad inicial de la BD + campos opcionales
 
-**Estado:** ⬜ Pendiente (diseño acordado en sesión de análisis · 2026-06-30)
+**Estado:** ✅ Completada (sesión 9 · 2026-07-05) — Etapas A y B
 
 **Objetivo:** dar el primer paso hacia trabajar el mismo proyecto desde varios equipos
 sin que se cree una BD vacía "fantasma" en cada uno. La estrategia inicial es **manual y
@@ -163,15 +163,16 @@ opcionales los campos `agent`/`model`.
 
 ### Etapa B — Campos opcionales: trabajo individual (avance parcial de idea 2)
 
-- [ ] **Esquema:** `sessions.agent` pasa de `NOT NULL` a **nullable** (migración idempotente,
-      sin tablas nuevas todavía). `model` ya es nullable.
-- [ ] **`start` con agente opcional:** permitir abrir sesión sin agente para registrar
-      trabajo solo-humano. Decidir la forma (posicional opcional o flag) sin romper la
-      sintaxis actual `cowork start <agente> [modelo]`.
-- [ ] **Formateo de salida tolerante a NULL:** `list`, `status`, `export` y `end` imprimen
-      `agent` directo; con `agent` nulo deben mostrar `—` (o etiqueta tipo "individual"),
-      igual que ya se hace con `model`. **El SQL de `report` no cambia** (no agrupa por
-      agente; agrupa por proyecto/mes/modelo y `model` ya tolera NULL).
+**Estado:** ✅ Completada (sesión 9 · 2026-07-05)
+
+- [x] **Esquema:** `sessions.agent` pasa de `NOT NULL` a **nullable**. BDs nuevas ya nacen así;
+      las existentes se migran de forma idempotente reconstruyendo la tabla (SQLite no permite
+      quitar `NOT NULL` con `ALTER`). Sin tablas nuevas todavía. `model` ya era nullable.
+- [x] **`start` con agente opcional:** el agente posicional pasa a `nargs="?"`; `cowork start`
+      sin argumentos abre una sesión solo-humano (individual). No rompe `cowork start <agente> [modelo]`.
+- [x] **Formateo de salida tolerante a NULL:** helper `fmt_agent()` muestra `individual` cuando
+      `agent` es NULL en `list`, `status`, `export`, `end` y los mensajes de `start`.
+      **El SQL de `report` no cambia** (no agrupa por agente; `model` ya tolera NULL).
 
 **Criterio de aceptación:** (a) con la BD en un disco externo desconectado, `cowork start`
 avisa y no crea una BD vacía; (b) `cowork start` sin agente registra una sesión individual

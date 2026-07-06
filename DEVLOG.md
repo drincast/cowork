@@ -5,9 +5,25 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
-## 2026-07-05 | Sesión 9 | Fase 5 Etapa A — Portabilidad inicial de la BD
+## 2026-07-05 | Sesión 9 | Fase 5 (Etapas A y B) — Portabilidad inicial + campos opcionales
 
-### Tareas realizadas
+### Etapa B — Campos opcionales (trabajo solo-humano)
+
+- **`sessions.agent` ahora es nullable.** Las BDs nuevas nacen así; las existentes se migran
+  de forma **idempotente** reconstruyendo la tabla (SQLite no permite quitar `NOT NULL` con
+  `ALTER`): tabla nueva → copia de datos → drop → rename → recrea índices, con
+  `foreign_keys OFF` durante la operación. Verificado: sobre una BD "vieja" con `agent NOT NULL`
+  y un registro, `notnull` pasó de 1 a 0 sin perder datos y la 2ª pasada no reconstruye.
+
+- **`start` con agente opcional.** El posicional `agente` pasa a `nargs="?"`; `cowork start` sin
+  argumentos abre una sesión **individual** (solo humano). No rompe `cowork start <agente> [modelo]`.
+
+- **Formateo tolerante a NULL.** Helper `fmt_agent()` muestra `individual` cuando `agent` es NULL
+  en `list`, `status`, `export`, `end` y los mensajes de `start`. El SQL de `report` no cambió.
+
+### Etapa A — Portabilidad inicial de la BD
+
+#### Tareas realizadas
 
 - **Validación de existencia de la BD (fin de la "BD fantasma").**
   `open_db()` recibe un parámetro `create`. Con `create=False` (todos los comandos salvo
@@ -42,9 +58,9 @@ Archivo muestra lo más actual al inicio.
 
 ### Pendiente para próxima sesión
 
-- Fase 5 Etapa B: `sessions.agent` nullable + `start` con agente opcional (trabajo solo-humano)
-  + formateo tolerante a NULL en `list`/`status`/`export`/`end`.
-- Commit de la Etapa A (cowork.py + PLAN + DEVLOG).
+- **Fase 5 completa (Etapas A y B).** Siguiente: Fase 6 (pruebas automatizadas en `tests/`,
+  buena red de seguridad antes de la Fase 7) o Fase 7 (normalización agentes/modelos con FK).
+- Commit y push de la Fase 5.
 
 ---
 
