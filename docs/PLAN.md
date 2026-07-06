@@ -146,18 +146,19 @@ opcionales los campos `agent`/`model`.
 
 ### Etapa A — Portabilidad inicial de la BD (idea 1)
 
-- [ ] **Resumen al ejecutar `init` y `start`:** indicar si el proyecto es nuevo o existente,
+**Estado:** ✅ Completada (sesión 9 · 2026-07-05)
+
+- [x] **Resumen al ejecutar `init` y `start`:** indican si el proyecto es nuevo o existente,
       la ruta efectiva de la BD y su fuente (`--db` / `WORKLOG_HOME` / `config.json` / default).
-- [ ] **No crear BD "fantasma":** si la ruta de BD resuelta **no existe** en el sistema
-      (disco desconectado, o proyecto nuevo sin ruta seteada), **avisar y parar** con un
-      mensaje guía que incluya el comando de ejemplo:
-      `La BD configurada en '<ruta>' no está disponible. Conéctala o ejecuta: cowork config set-db <ruta>`.
-      Hoy `open_db()` crea la BD y el esquema sin avisar; hay que distinguir
-      "crear por primera vez intencional" de "ruta ausente inesperada".
-- [ ] **La ruta de la BD vive en `config.json` local**, no en el `.cowork` versionado
-      (regla de Fase 2.5: `.cowork` es identidad, no estado local per-máquina). El campo
-      `db_path` ya existe; esta fase añade la **validación de existencia** antes de operar.
-- [ ] **Sin** detección automática de unidades ni etiquetas de volumen en esta fase
+      `status` también muestra la ruta de la BD.
+- [x] **No crear BD "fantasma":** `open_db()` valida existencia del archivo. Con `create=False`
+      (todos los comandos salvo `init`), si la ruta resuelta **no existe** → **avisa y para**
+      con mensaje guía (`cowork config set-db <ruta>` / `cowork init`). Solo `init` crea la BD
+      intencionalmente (`create=True`), distinguiendo "crear por primera vez" de "ruta ausente".
+- [x] **La ruta de la BD vive en `config.json` local**, no en el `.cowork` versionado. Se añadió
+      la **validación de existencia** antes de operar. Nuevo `init --db-path <ruta>` persiste esa
+      ruta en `config.json` (equivale a `config set-db`) y crea la BD ahí en un solo paso.
+- [x] **Sin** detección automática de unidades ni etiquetas de volumen en esta fase
       (anotado para más adelante; ver "Pendientes anotados").
 
 ### Etapa B — Campos opcionales: trabajo individual (avance parcial de idea 2)

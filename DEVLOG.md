@@ -5,6 +5,49 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-07-05 | Sesión 9 | Fase 5 Etapa A — Portabilidad inicial de la BD
+
+### Tareas realizadas
+
+- **Validación de existencia de la BD (fin de la "BD fantasma").**
+  `open_db()` recibe un parámetro `create`. Con `create=False` (todos los comandos salvo
+  `init`), si la ruta de BD resuelta no existe **avisa y para** con mensaje guía en vez de
+  crear una BD vacía. Solo `init` la crea intencionalmente (`create=True`). Así se distingue
+  "crear por primera vez" de "ruta ausente inesperada" (disco desconectado).
+
+- **Resumen de BD en `init`, `start` y `status`.**
+  Nuevo helper `db_summary_line()` imprime la ruta efectiva de la BD y su fuente
+  (`--db` / `WORKLOG_HOME` / `config.json` / default). `init` además indica si el proyecto
+  es nuevo o existente.
+
+- **`init --db-path <ruta>`.**
+  Persiste la ubicación de la BD en `config.json` (equivale a `config set-db`) y la crea ahí
+  en un solo paso, pensado para elegir un disco externo en un equipo nuevo. Avisa si
+  `WORKLOG_HOME` está activo (tiene prioridad y anula esa ruta).
+
+### Verificación (sandbox aislado con WORKLOG_HOME temporal)
+
+- `status`/`start` con BD inexistente → avisan y paran (exit 1), sin crear archivo.
+- `init` → crea la BD, muestra estado "nuevo" y la ruta/fuente.
+- `start`/`status`/`end` con BD existente → funcionan y muestran la ruta.
+- BD renombrada (simula disco desconectado) → `start` avisa y **no** recrea BD fantasma.
+- `init --db-path` → escribe `db_path` en `config.json`.
+- BD real intacta: `cowork config` sigue resolviendo `~/.worklog/worklog.db` (fuente default).
+
+### Nota de diseño
+
+- **`init` es el único punto de creación intencional** de la BD (decisión del usuario).
+  El resto de comandos asume que la BD ya existe. Bajo `WORKLOG_HOME`, la capa `config.json`
+  se ignora por las reglas de capas de Fase 2.5 (comportamiento esperado y avisado).
+
+### Pendiente para próxima sesión
+
+- Fase 5 Etapa B: `sessions.agent` nullable + `start` con agente opcional (trabajo solo-humano)
+  + formateo tolerante a NULL en `list`/`status`/`export`/`end`.
+- Commit de la Etapa A (cowork.py + PLAN + DEVLOG).
+
+---
+
 ## 2026-06-30 | Sesión 8 | Planeación — Replanificación de fases 5 a 9 (sin implementación)
 
 ### Naturaleza de la sesión

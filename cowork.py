@@ -74,9 +74,29 @@ def get_db_path() -> Path:
 # Base de datos
 # ---------------------------------------------------------------------------
 
-def open_db() -> sqlite3.Connection:
-    db_path = get_db_path()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+def _db_unavailable_msg(path: Path, source: str) -> str:
+    """Mensaje guía cuando la BD resuelta no existe (Fase 5, Etapa A)."""
+    return (
+        f"La BD (fuente: {source}) en '{path}' no está disponible.\n"
+        f"Puede que el disco esté desconectado o la ruta sea incorrecta.\n"
+        f"  · Conéctalo, o corrige la ruta con: cowork config set-db <ruta>\n"
+        f"  · Si es un proyecto nuevo, créala con: cowork init"
+    )
+
+
+def open_db(create: bool = False) -> sqlite3.Connection:
+    """Abre la BD resuelta por capas.
+
+    Con create=False (por defecto), si el archivo de BD no existe **avisa y para**
+    en vez de crear una BD "fantasma" vacía (Fase 5, Etapa A). Solo `init` la crea
+    intencionalmente con create=True.
+    """
+    db_path, source = resolve_db()
+    if not db_path.exists():
+        if not create:
+            print(_db_unavailable_msg(db_path, source), file=sys.stderr)
+            sys.exit(1)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -312,6 +332,12 @@ def ensure_project(conn):
     return _project_by_uid(conn, uid), fuente, True
 
 
+def db_summary_line() -> str:
+    """Línea de resumen con la ruta efectiva de la BD y su fuente (Fase 5)."""
+    path, source = resolve_db()
+    return f"  BD: {path} (fuente: {source})"
+
+
 def get_open_session(conn: sqlite3.Connection, project_id: int):
     return conn.execute(
         "SELECT * FROM sessions WHERE project_id = ? AND end_at IS NULL",
@@ -324,7 +350,22 @@ def get_open_session(conn: sqlite3.Connection, project_id: int):
 # ---------------------------------------------------------------------------
 
 def cmd_init(args) -> None:
-    with open_db() as conn:
+    # --db-path: persiste la ubicación de la BD en config.json antes de crearla,
+    # para elegir dónde vivirá (p. ej. disco externo) en un solo paso.
+    if getattr(args, "db_path", None):
+        ruta = str(Path(args.db_path).expanduser())
+        cfg = load_config()
+        cfg["db_path"] = ruta
+        save_config(cfg)
+        print(f"Ruta de BD guardada en config.json: {ruta}")
+        if os.environ.get("WORKLOG_HOME"):
+            print(
+                "  Aviso: WORKLOG_HOME está activo y tiene prioridad sobre config.json;"
+                " la ruta guardada no se usará mientras esa variable esté definida."
+            )
+
+    # init es el punto de creación intencional de la BD (create=True).
+    with open_db(create=True) as conn:
         # --link: asocia el directorio actual a un proyecto existente por uid.
         if getattr(args, "link", None):
             target = _project_by_uid(conn, args.link)
@@ -373,6 +414,9 @@ def cmd_init(args) -> None:
                 f"Proyecto: '{project['name']}' · uid {short_uid(project['uid'])} "
                 f"· identidad por {fuente}."
             )
+        estado = "nuevo" if fuente == "nuevo" else "existente"
+        print(f"  Estado: proyecto {estado}.")
+        print(db_summary_line())
         if marcador_creado:
             print(f"Marcador {MARKER_NAME} creado (versionable).")
 
@@ -415,6 +459,7 @@ def cmd_start(args) -> None:
         model_str = f" ({model})" if model else ""
         print(f"Sesión iniciada — {args.agente}{model_str} en '{project['name']}'.")
         print(f"  Identidad: uid {short_uid(project['uid'])} (por {fuente}).")
+        print(db_summary_line())
         if marcador_creado:
             print(
                 f"  Marcador {MARKER_NAME} creado (versionable; "
@@ -466,6 +511,7 @@ def cmd_status(args) -> None:
         open_sess = get_open_session(conn, project["id"])
         if not open_sess:
             print(f"Proyecto : {project['name']}\nNo hay sesión abierta.")
+            print(db_summary_line())
             return
 
         started = parse_iso(open_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
@@ -478,6 +524,7 @@ def cmd_status(args) -> None:
             f"Inicio    : {started}\n"
             f"Transcurrido : {elapsed}"
         )
+        print(db_summary_line())
 
 
 def cmd_list(args) -> None:
@@ -683,6 +730,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init", help="Registra o renombra el proyecto actual.")
     p_init.add_argument("nombre", nargs="?", default=None, help="Nombre del proyecto.")
     p_init.add_argument("--link", default=None, help="Enlaza el directorio actual a un proyecto existente por uid.")
+    p_init.add_argument("--db-path", default=None, help="Persiste en config.json dónde vivirá la BD (p. ej. disco externo) y la crea ahí.")
     p_init.set_defaults(func=cmd_init)
 
     # start
