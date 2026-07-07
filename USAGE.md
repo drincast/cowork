@@ -19,6 +19,14 @@ carpeta" en el README). Si no, usa `python /ruta/a/cowork.py` en su lugar.
    El agente es el nombre de quien trabaja (ej. `"Claude Code"`, `"Cursor"`);
    el segundo argumento es el modelo (opcional).
 
+   Para registrar **trabajo individual** (solo-humano, sin agente de IA):
+
+   ```bash
+   cowork start
+   ```
+
+   La sesión queda etiquetada como "individual".
+
 2. **Mientras trabajas**, para ver la sesión activa y el tiempo transcurrido:
 
    ```bash
@@ -37,6 +45,9 @@ carpeta" en el README). Si no, usa `python /ruta/a/cowork.py` en su lugar.
   `cowork start ... --force` la cierra y abre la nueva.
 - El proyecto se identifica solo (por marcador `.cowork`, remoto git o ruta);
   no necesitas configurar nada para empezar.
+- Si la base de datos no existe, cowork avisa en vez de crearla silenciosamente.
+  Usa `cowork init` para crearla por primera vez, o
+  `cowork init --db-path <ruta>` para elegir dónde vivirá (ej. disco externo).
 - Consultas cuando quieras: `cowork list` (últimas sesiones),
   `cowork report --model` (tiempo por modelo/proyecto/mes),
   `cowork export` (genera `WORKLOG.md` versionable).

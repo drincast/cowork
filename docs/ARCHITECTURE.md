@@ -112,7 +112,7 @@ CREATE TABLE sessions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id   INTEGER NOT NULL REFERENCES projects(id),
     author       TEXT NOT NULL DEFAULT 'drincast',
-    agent        TEXT NOT NULL,          -- "Claude Code", "Antigravity", "Cursor"...
+    agent        TEXT,                   -- "Claude Code", "Cursor"... NULL = trabajo individual
     model        TEXT,                   -- "claude-opus-4-8" (puede ser NULL)
     start_at     TEXT NOT NULL,          -- ISO 8601 con offset
     end_at       TEXT,                   -- NULL = sesión abierta
@@ -129,6 +129,7 @@ Decisiones clave:
 - **Sin totales acumulados almacenados:** los agregados se obtienen con SQL (`SUM`, `GROUP BY`). Esto elimina por completo la fragilidad de re-parsear y reescribir totales que tiene el sistema actual basado en Markdown.
 - **Sesión abierta = `end_at IS NULL`.** Solo puede haber una abierta por proyecto.
 - `model` es nullable porque no siempre se conoce el ID exacto del modelo.
+- `agent` es nullable para registrar trabajo solo-humano (sin agente de IA). Se muestra como "individual" en la interfaz.
 
 ---
 
@@ -151,8 +152,9 @@ Esto resuelve el escenario que en el sistema Markdown actual produciría duracio
 | Comando | Comportamiento |
 |---|---|
 | `cowork init [nombre]` | Registra/renombra el proyecto de la ruta actual. Opcional. |
-| `cowork start <agente> [modelo]` | Resuelve/crea proyecto por ruta actual y abre sesión. Si hay una abierta, avisa y para. |
-| `cowork start <agente> [modelo] --force` | Auto-cierra la sesión abierta previa y abre la nueva. |
+| `cowork init [nombre] --db-path <ruta>` | Igual, pero primero persiste la ubicación de la BD en `config.json` y la crea ahí. |
+| `cowork start [agente] [modelo]` | Resuelve/crea proyecto por ruta actual y abre sesión. Sin agente = sesión individual (solo-humano). Si hay una abierta, avisa y para. |
+| `cowork start [agente] [modelo] --force` | Auto-cierra la sesión abierta previa y abre la nueva. |
 | `cowork end [resumen]` | Cierra la sesión abierta del proyecto actual y calcula duración. |
 | `cowork status` | Muestra la sesión abierta (si hay) y el tiempo transcurrido en vivo. |
 | `cowork list [-n N]` | Últimas N sesiones del proyecto actual. |

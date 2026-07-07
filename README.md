@@ -92,7 +92,8 @@ Por defecto la BD vive en `~/.worklog/worklog.db`. Si quieres llevarla en un dis
 
 ```bash
 python cowork.py init "Nombre del proyecto"         # registra o renombra el proyecto actual
-python cowork.py start "Claude Code" "claude-opus-4-8"  # abre sesión
+python cowork.py start "Claude Code" "claude-opus-4-8"  # abre sesión con agente
+python cowork.py start                              # abre sesión individual (solo-humano)
 python cowork.py status                             # muestra sesión activa y tiempo transcurrido
 python cowork.py end "resumen de lo trabajado"      # cierra y calcula duración
 ```
@@ -117,9 +118,12 @@ python cowork.py start "Claude Code" --force        # auto-cierra la anterior y 
 
 **¿Dónde vive la base de datos?** Se resuelve por capas (gana la primera): flag `--db <ruta>` → variable `WORKLOG_HOME` → `config.json` → por defecto `~/.worklog/worklog.db`.
 
+Si la BD no existe, cowork avisa y para en vez de crear una vacía silenciosamente. Solo `init` la crea intencionalmente.
+
 ```bash
 python cowork.py config                              # muestra la ruta efectiva de la BD y de qué fuente salió
 python cowork.py config set-db "D:\datos\worklog.db" # fija la ruta en config.json
+python cowork.py init --db-path "D:\datos\worklog.db"  # crea la BD en la ruta indicada y la persiste en config.json
 ```
 
 **¿Cómo se identifica un proyecto?** No por la ruta (que cambia entre equipos o discos), sino por un identificador estable resuelto por capas: marcador `.cowork` → URL del remoto git → ruta (último recurso). La primera vez, `init`/`start` crean un archivo `.cowork` con un `id` y un `name`.
@@ -146,7 +150,8 @@ python cowork.py config set-db "D:\datos\worklog.db" # fija la ruta en config.js
 - **Fase 2.5 completada** — configuración de la BD (`config`) e identidad de proyecto portable (`.cowork` / remoto git).
 - **Fase 3 completada** — `cowork` invocable desde cualquier carpeta (lanzadores en `bin/` + PATH) y guía de uso para el agente.
 - **Fase 4 completada** — empaquetado con `pyproject.toml`, instalable con `pipx install .` (versión 0.1.0).
-- Siguiente: Fase 5 (extras) y Fase 6 (publicación en PyPI).
+- **Fase 5 completada** — portabilidad de la BD (validación de existencia, `init --db-path`, resumen de ruta/fuente) y campos opcionales para trabajo solo-humano (`start` sin agente).
+- Siguiente: Fase 6 (publicación en PyPI).
 
 ---
 
