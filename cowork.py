@@ -549,6 +549,14 @@ def cmd_status(args) -> None:
         open_sess = get_open_session(conn, project["id"])
         if not open_sess:
             print(f"Proyecto : {project['name']}\nNo hay sesión abierta.")
+            last_sess = conn.execute(
+                "SELECT * FROM sessions WHERE project_id = ? AND end_at IS NOT NULL ORDER BY start_at DESC LIMIT 1",
+                (project["id"],),
+            ).fetchone()
+            if last_sess:
+                started = parse_iso(last_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
+                mins = duration_minutes(last_sess["start_at"], last_sess["end_at"])
+                print(f"Última sesión: {started} ({mins:.1f} min)")
             print(db_summary_line())
             return
 
@@ -606,6 +614,37 @@ def cmd_list(args) -> None:
 
 def cmd_report(args) -> None:
     with open_db() as conn:
+        if getattr(args, "this", False):
+            project = find_project(conn)
+            if not project:
+                print("No hay proyecto registrado en esta ruta.")
+                return
+
+            rows = conn.execute(
+                "SELECT s.* FROM sessions s WHERE s.project_id = ? AND s.end_at IS NOT NULL ORDER BY s.start_at ASC",
+                (project["id"],),
+            ).fetchall()
+
+            if not rows:
+                print(f"Proyecto: {project['name']}\nNo hay sesiones cerradas para reportar.")
+                return
+
+            total_n = len(rows)
+            total_mins = sum(duration_minutes(r["start_at"], r["end_at"]) for r in rows)
+            first_date = parse_iso(rows[0]["start_at"]).strftime("%Y-%m-%d %H:%M")
+            last_sess = rows[-1]
+            last_date = parse_iso(last_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
+            last_dur = fmt_duration(duration_minutes(last_sess["start_at"], last_sess["end_at"]))
+
+            print(f"Reporte del proyecto: {project['name']} (uid {short_uid(project['uid'])})")
+            print(f"  Sesiones totales : {total_n}")
+            print(f"  Minutos totales  : {total_mins:.1f}")
+            print(f"  Horas totales    : {total_mins / 60:.2f}")
+            print(f"  Primer registro  : {first_date}")
+            print(f"  Último registro  : {last_date}")
+            print(f"  Última sesión    : {fmt_agent(last_sess['agent'])} {last_sess['model'] or ''} ({last_dur})")
+            return
+
         rows = conn.execute(
             "SELECT s.start_at, s.end_at, s.model, p.name AS project_name "
             "FROM sessions s JOIN projects p ON p.id = s.project_id "
@@ -798,6 +837,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_report.add_argument("--project", action="store_true", help="Agrupa por proyecto.")
     p_report.add_argument("--month", action="store_true", help="Agrupa por mes (YYYY-MM).")
     p_report.add_argument("--model", action="store_true", help="Agrupa por modelo.")
+    p_report.add_argument("--this", action="store_true", help="Reporte detallado del proyecto actual.")
     p_report.set_defaults(func=cmd_report)
 
     # export

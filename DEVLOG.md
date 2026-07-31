@@ -5,6 +5,20 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-07-30 | Sesión 10 | Fase 6 — Mejoras de Status y Reporte de Proyecto
+ 
+### Tareas realizadas
+ 
+- **Mejora de `cowork status`.** Ahora, cuando no hay una sesión abierta, el comando no se limita a decir "No hay sesión abierta", sino que recupera y muestra la fecha y duración de la última sesión cerrada del proyecto.
+- **Nuevo reporte específico de proyecto (`cowork report --this`).** Implementación de un resumen detallado del proyecto actual que incluye:
+  - Total de sesiones cerradas.
+  - Tiempo acumulado en minutos y horas.
+  - Fecha del primer y último registro.
+  - Detalles de la última sesión (agente, modelo y duración).
+- **Verificación de despliegue.** Validada la correcta actualización de la herramienta mediante `pipx install .` para asegurar que los cambios se reflejan en el comando global.
+ 
+---
+ 
 ## 2026-07-05 | Sesión 9 | Fase 5 (Etapas A y B) — Portabilidad inicial + campos opcionales
 
 ### Etapa B — Campos opcionales (trabajo solo-humano)

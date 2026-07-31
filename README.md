@@ -102,7 +102,7 @@ Consultas y export:
 
 ```bash
 python cowork.py list -n 10                          # últimas sesiones del proyecto
-python cowork.py report --model                      # tiempo agregado por modelo (o --project / --month)
+python cowork.py report --model                      # tiempo agregado por modelo (o --project / --month / --this (datos del proyecto actual, carpeta de proyecto))
 python cowork.py export                              # genera WORKLOG.md desde la BD
 ```
 

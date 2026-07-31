@@ -13,10 +13,11 @@
 - [x] **Fase 3** — Ergonomía de instalación · completada en sesión 6 (2026-06-15)
 - [x] **Fase 4** — Empaquetado pip (instalación local) · completada en sesión 7 (2026-06-15)
 - [x] **Fase 5** — Portabilidad inicial de la BD + campos opcionales · completada en sesión 9 (2026-07-05)
-- [ ] **Fase 6** — Pruebas automatizadas
-- [ ] **Fase 7** — Normalización de agentes y modelos (tablas + FK)
-- [ ] **Fase 8** — Extras
-- [ ] **Fase 9** — Publicación en PyPI (final)
+- [x] **Fase 6** — Mejoras de Status y Reporte de Proyecto · completada en sesión 10 (2026-07-30)
+- [ ] **Fase 7** — Pruebas automatizadas
+- [ ] **Fase 8** — Normalización de agentes y modelos (tablas + FK)
+- [ ] **Fase 9** — Extras
+- [ ] **Fase 10** — Publicación en PyPI (final)
 
 > Leyenda: `[x]` completada · `[ ]` pendiente. El detalle de tareas de cada fase está en su checklist más abajo.
 
@@ -189,7 +190,24 @@ y `list`/`export` la muestran sin imprimir `None`.
 
 ---
 
-## Fase 6 — Pruebas automatizadas
+## Fase 6 — Mejoras de Status y Reporte de Proyecto
+
+**Estado:** ✅ Completada (sesión 10 · 2026-07-30)
+
+**Objetivo:** Mejorar la visibilidad de la actividad reciente en el proyecto y proporcionar un reporte detallado y rápido del estado acumulado del proyecto actual.
+
+Checklist de tareas:
+
+- [x] Modificar `cowork status` para mostrar la fecha y duración de la última sesión cerrada si no hay una sesión abierta.
+- [x] Agregar flag `--this` al comando `report` para generar un resumen específico del proyecto actual.
+- [x] El reporte `--this` debe incluir: total de sesiones, minutos totales, horas totales, fecha del primer y último registro, y datos de la última sesión cerrada.
+- [x] Actualizar documentación y verificar funcionamiento con instalación via pipx.
+
+**Criterio de aceptación:** `cowork status` informa sobre la última sesión cuando no hay actividad actual; `cowork report --this` muestra la estadística completa del proyecto sin necesidad de flags de agrupación global.
+
+---
+
+## Fase 7 — Pruebas automatizadas
 
 **Estado:** ⬜ Pendiente
 
@@ -205,7 +223,7 @@ Checklist de tareas:
 
 ---
 
-## Fase 7 — Normalización de agentes y modelos (tablas + FK)
+## Fase 8 — Normalización de agentes y modelos (tablas + FK)
 
 **Estado:** ⬜ Pendiente · **cambio grande** (toca esquema, migración y varias consultas)
 
@@ -226,7 +244,7 @@ por FK; `report --model` sigue dando los mismos totales que antes de la migraci�
 
 ---
 
-## Fase 8 — Extras (futuro)
+## Fase 9 — Extras (futuro)
 
 **Estado:** ⬜ Pendiente
 
@@ -238,7 +256,7 @@ Checklist de tareas candidatas:
 
 ---
 
-## Fase 9 — Publicación en PyPI (final)
+## Fase 10 — Publicación en PyPI (final)
 
 **Estado:** ⬜ Pendiente
 
