@@ -14,10 +14,13 @@
 - [x] **Fase 4** — Empaquetado pip (instalación local) · completada en sesión 7 (2026-06-15)
 - [x] **Fase 5** — Portabilidad inicial de la BD + campos opcionales · completada en sesión 9 (2026-07-05)
 - [x] **Fase 6** — Mejoras de Status y Reporte de Proyecto · completada en sesión 10 (2026-07-30)
-- [ ] **Fase 7** — Pruebas automatizadas
-- [ ] **Fase 8** — Normalización de agentes y modelos (tablas + FK)
-- [ ] **Fase 9** — Extras
-- [ ] **Fase 10** — Publicación en PyPI (final)
+- [ ] **Fase 7** — Sistema de pausas
+- [ ] **Fase 8** — Registro estructurado de agentes/modelos por sesión (multi-agente)
+- [ ] **Fase 9** — Edición de sesión abierta
+- [ ] **Fase 10** — Pruebas automatizadas
+- [ ] **Fase 11** — Normalización de agentes y modelos (tablas + FK)
+- [ ] **Fase 12** — Extras
+- [ ] **Fase 13** — Publicación en PyPI (final)
 
 > Leyenda: `[x]` completada · `[ ]` pendiente. El detalle de tareas de cada fase está en su checklist más abajo.
 
@@ -207,12 +210,111 @@ Checklist de tareas:
 
 ---
 
-## Fase 7 — Pruebas automatizadas
+## Fase 7 — Sistema de pausas
 
 **Estado:** ⬜ Pendiente
 
-**Objetivo:** blindar el core antes de seguir agregando funcionalidad. Tras las Fases 5
-y, sobre todo, la 7 (migración de esquema), conviene tener una red de seguridad.
+**Objetivo:** permitir pausar y reanudar una sesión abierta sin cerrarla, para reflejar
+interrupciones reales del trabajo (atender algo distinto un rato) sin fragmentar el
+registro en varias sesiones sueltas.
+
+Checklist de tareas:
+
+- [ ] Tabla nueva `session_pauses(id, session_id, pause_at, resume_at NULL, motivo)`.
+      Se prefiere tabla sobre columnas simples en `sessions` porque permite varias pausas
+      por sesión y guardar el motivo de cada una.
+- [ ] Regla: solo una pausa activa (`resume_at IS NULL`) por sesión; solo se puede pausar
+      una sesión abierta y que no esté ya pausada.
+- [ ] Comando `cowork pause [motivo]`: abre una pausa en la sesión activa.
+- [ ] Comando `cowork resume`: cierra la pausa activa.
+- [ ] `status` muestra si la sesión está en pausa (desde cuándo, motivo) y el tiempo
+      pausado acumulado.
+- [ ] `duration_minutes()` pasa a calcular **tiempo neto** = `(end_at - start_at) -
+      Σ(resume_at - pause_at)` de las pausas cerradas de esa sesión. Sesiones históricas
+      sin filas en `session_pauses` no cambian su duración calculada.
+- [ ] Decidir y documentar el comportamiento de `end` con una pausa activa sin resolver
+      (auto-cerrarla en ese instante, de forma que el tiempo pausado hasta ahí no cuente
+      como trabajado).
+- [ ] Decidir si `report`/`export` muestran el tiempo pausado como columna informativa
+      aparte del tiempo neto.
+
+**Criterio de aceptación:** una sesión con una o más pausas registra duración neta
+correcta (excluye el tiempo pausado); sesiones sin pausas no cambian de comportamiento;
+`status` refleja el estado de pausa.
+
+---
+
+## Fase 8 — Registro estructurado de agentes y modelos por sesión (multi-agente)
+
+**Estado:** ⬜ Pendiente · **cambio grande** (toca esquema, migración de datos reales y varias consultas)
+
+**Objetivo:** reemplazar el emparejamiento manual por posición que se usa hoy para
+sesiones con varios agentes/modelos (`agent = "claude ai, openai, brave ai"`,
+`model = "[claude-sonnet-5], [openai-luna], [ai-grounding]"`, con la correspondencia
+implícita por orden) por una relación explícita agente↔modelo, sin depender de que las
+dos listas queden bien alineadas.
+
+Checklist de tareas:
+
+- [ ] Tabla nueva `session_agents(id, session_id, agent, model, posicion, added_at)`.
+- [ ] `sessions.agent`/`model` quedan como histórico de solo lectura (no se eliminan:
+      sirven de respaldo crudo para auditar la migración).
+- [ ] **Migración de datos históricos** (idempotente, revisable con `--dry-run` antes de
+      aplicar, no automática al abrir la BD):
+      1. `agent`/`model` NULL → no genera filas (sesión individual).
+      2. Sesión "simple" (sin coma en `agent`, sin formato de lista en `model`) → una
+         fila en `session_agents` con posición 1, valores tal cual.
+      3. Sesión "multi" (agent con comas y model en formato `[m1], [m2], ...`) → separar
+         ambas listas y emparejar por posición, generando una fila por par.
+      4. Casos ambiguos (conteo de agentes ≠ conteo de modelos, o formato no reconocido)
+         → no migrar automáticamente; reportar al final la lista de sesiones que
+         requieren revisión manual.
+- [ ] `start` sigue aceptando opcionalmente el primer agente/modelo (crea la fila de
+      posición 1 en `session_agents`).
+- [ ] `list`, `status`, `export` y `report --model` pasan a leer de `session_agents` vía
+      JOIN en vez de las columnas de texto de `sessions`.
+- [ ] Decidir cómo se reparte/cuenta el tiempo de la sesión cuando tiene varios modelos
+      en `report --model` (¿tiempo completo por cada modelo usado, o repartido?).
+
+**Nota:** la Fase 11 (normalización con catálogo `agents`/`models` + FK) pasa a operar
+sobre `session_agents.agent`/`model` en vez de `sessions.agent`/`model`, ya que esta fase
+es la que se vuelve fuente de verdad del dato crudo.
+
+**Criterio de aceptación:** todas las sesiones históricas quedan migradas a
+`session_agents` o explícitamente listadas como pendientes de revisión manual;
+`report --model` sobre datos migrados da totales coherentes con lo que se esperaría
+sumando manualmente.
+
+---
+
+## Fase 9 — Edición de sesión abierta
+
+**Estado:** ⬜ Pendiente · depende de la Fase 8 (`session_agents`)
+
+**Objetivo:** permitir agregar o corregir agente/modelo de la sesión activa cuando se
+suma un participante a mitad de camino, sin cerrar y reabrir sesión. Alcance: **solo la
+sesión abierta actual**, no sesiones ya cerradas.
+
+Checklist de tareas:
+
+- [ ] Comando `cowork agent add <agente> [modelo]`: agrega la siguiente posición a
+      `session_agents` de la sesión abierta.
+- [ ] Comando `cowork agent list`: muestra los pares agente/modelo actuales de la sesión
+      abierta, con su posición.
+- [ ] Evaluar si además se ofrece corregir/eliminar un par ya agregado por error (ej.
+      `cowork agent remove <posicion>`).
+
+**Criterio de aceptación:** se puede agregar un agente/modelo a mitad de una sesión
+abierta y queda reflejado correctamente en `session_agents` y en `status`.
+
+---
+
+## Fase 10 — Pruebas automatizadas
+
+**Estado:** ⬜ Pendiente
+
+**Objetivo:** blindar el core antes de seguir agregando funcionalidad. Tras las Fases 5,
+7 y 8 (migraciones y cambios de esquema), conviene tener una red de seguridad.
 
 Checklist de tareas:
 
@@ -220,10 +322,11 @@ Checklist de tareas:
 - [ ] Cubrir el ciclo `start`/`end`/`status`, cálculo de duración, resolución de BD por capas
       y resolución de identidad (`.cowork` / remoto git / ruta).
 - [ ] Cubrir los casos de Fase 5: BD ausente (avisar y parar) y sesión individual (agente null).
+- [ ] Cubrir pausas (Fase 7) y registro multi-agente (Fase 8), incluyendo la migración.
 
 ---
 
-## Fase 8 — Normalización de agentes y modelos (tablas + FK)
+## Fase 11 — Normalización de agentes y modelos (tablas + FK)
 
 **Estado:** ⬜ Pendiente · **cambio grande** (toca esquema, migración y varias consultas)
 
@@ -233,9 +336,10 @@ integridad referencial, evitar typos y reutilizar identificadores de modelo.
 Checklist de tareas:
 
 - [ ] Tablas nuevas `agents(id, name)` y `models(id, name[, agent_id])`.
-- [ ] `sessions.agent`/`model` (texto) → `sessions.agent_id`/`model_id` (**FK nullable**).
+- [ ] `session_agents.agent`/`model` (texto) → `session_agents.agent_id`/`model_id`
+      (**FK nullable**).
 - [ ] **Migración idempotente** que pueble `agents`/`models` con los valores de texto
-      distintos ya existentes y reconecte cada sesión a su FK.
+      distintos ya existentes y reconecte cada fila de `session_agents` a su FK.
 - [ ] `report`, `list`, `export` y `status` pasan a hacer **JOIN** en vez de leer la columna.
 - [ ] Posibles comandos de catálogo (`agents`/`models` para listar/renombrar) — a evaluar.
 
@@ -244,7 +348,7 @@ por FK; `report --model` sigue dando los mismos totales que antes de la migraci�
 
 ---
 
-## Fase 9 — Extras (futuro)
+## Fase 12 — Extras (futuro)
 
 **Estado:** ⬜ Pendiente
 
@@ -256,7 +360,7 @@ Checklist de tareas candidatas:
 
 ---
 
-## Fase 10 — Publicación en PyPI (final)
+## Fase 13 — Publicación en PyPI (final)
 
 **Estado:** ⬜ Pendiente
 

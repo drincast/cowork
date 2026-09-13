@@ -5,6 +5,69 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-09-12 | Sesión 11 | Planeación — Nuevas fases 7 a 9 (sin implementación)
+
+### Naturaleza de la sesión
+
+Sesión **solo de análisis y planeación**. No se tocó `cowork.py` ni el core; el objetivo
+fue incorporar al plan tres limitaciones de uso identificadas por el usuario al usar la
+herramienta en sesiones reales.
+
+### Contexto: tres ideas a analizar
+
+1. **Sistema de pausas.** Al interrumpir el trabajo (para atender algo distinto un rato),
+   hoy no hay forma de pausar; la alternativa era cerrar (`end`) y volver a abrir
+   (`start`), fragmentando en varias sesiones lo que en realidad es una sola.
+2. **Registro multi-agente frágil.** Cuando se trabaja con varios modelos/agentes LLM en
+   la misma sesión, el usuario fuerza el dato en las columnas de texto libre `agent`/
+   `model` así: `agent = "claude ai, openai, brave ai"` y
+   `model = "[claude-sonnet-5], [openai-luna], [ai-grounding]"`, confiando en que el
+   orden de ambas listas coincida (relación 1:1 por posición, sin ninguna garantía real).
+   Se confirmó que la mayoría de los registros recientes ya están así y que la solución
+   debe incluir **migrar esos datos históricos**.
+3. **Sin edición de sesión.** Si a mitad de una sesión abierta se suma un segundo
+   agente/modelo, no había forma de agregarlo — solo podía reflejarse si se sabía desde
+   el `start`.
+
+### Decisiones tomadas
+
+- **Idea 1 → Fase 7 (Sistema de pausas).** Tabla nueva `session_pauses(id, session_id,
+  pause_at, resume_at NULL, motivo)` en vez de columnas simples en `sessions`, para
+  soportar varias pausas por sesión y guardar el motivo de cada una. Comandos
+  `cowork pause [motivo]` / `cowork resume`. `duration_minutes()` pasa a calcular
+  **tiempo neto** restando las pausas cerradas; las sesiones históricas (sin filas en
+  `session_pauses`) no cambian su duración calculada.
+- **Idea 2 → Fase 8 (Registro estructurado de agentes/modelos, multi-agente).** Tabla
+  nueva `session_agents(id, session_id, agent, model, posicion, added_at)` con una fila
+  por par agente↔modelo, reemplazando el emparejamiento manual por posición.
+  `sessions.agent`/`model` quedan como histórico de solo lectura (respaldo crudo, no se
+  eliminan). Se define una **migración idempotente y revisable** (`--dry-run`) que separa
+  los casos simples (un solo agente/modelo) de los casos "multi" (comas + corchetes,
+  emparejados por posición) y deja explícitamente listadas para revisión manual las
+  sesiones donde el conteo de agentes y modelos no cuadra.
+- **Idea 3 → Fase 9 (Edición de sesión abierta).** Comandos `cowork agent add <agente>
+  [modelo]` y `cowork agent list`, con alcance **solo a la sesión abierta actual** (no se
+  editan sesiones ya cerradas). Depende de la Fase 8.
+- **Reordenamiento de fases:** las fases pendientes existentes se desplazan tres
+  posiciones: 7 (Pruebas automatizadas) → 10, 8 (Normalización agentes/modelos con FK) →
+  11, 9 (Extras) → 12, 10 (Publicación en PyPI) → 13. La Fase 11 se ajusta para operar
+  sobre `session_agents.agent`/`model` en vez de `sessions.agent`/`model`, ya que la
+  Fase 8 pasa a ser la fuente de verdad del dato crudo.
+
+### Archivos modificados
+
+- `docs/PLAN.md`: inserción de las Fases 7, 8 y 9 nuevas; renumeración de las Fases 7-10
+  existentes a 10-13 con ajustes de texto donde correspondía.
+- `DEVLOG.md`: esta entrada.
+
+### Pendiente para próxima sesión
+
+- Implementar Fase 7 (pausas), empezando por el esquema (`session_pauses`) y el cambio en
+  `duration_minutes()`.
+- Commit de la replanificación (PLAN + DEVLOG).
+
+---
+
 ## 2026-07-30 | Sesión 10 | Fase 6 — Mejoras de Status y Reporte de Proyecto
  
 ### Tareas realizadas
