@@ -121,6 +121,18 @@ CREATE TABLE sessions (
 
 CREATE INDEX idx_sessions_project ON sessions(project_id);
 CREATE INDEX idx_sessions_open    ON sessions(project_id, end_at);
+
+CREATE TABLE session_pauses (           -- Fase 7
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  INTEGER NOT NULL REFERENCES sessions(id),
+    pause_at    TEXT NOT NULL,          -- ISO 8601 con offset
+    resume_at   TEXT,                   -- NULL = pausa activa
+    motivo      TEXT
+);
+
+CREATE INDEX idx_pauses_session ON session_pauses(session_id);
+CREATE UNIQUE INDEX idx_pauses_active
+    ON session_pauses(session_id) WHERE resume_at IS NULL;  -- una pausa activa por sesión
 ```
 
 Decisiones clave:
@@ -129,6 +141,7 @@ Decisiones clave:
 - **Sin totales acumulados almacenados:** los agregados se obtienen con SQL (`SUM`, `GROUP BY`). Esto elimina por completo la fragilidad de re-parsear y reescribir totales que tiene el sistema actual basado en Markdown.
 - **Sesión abierta = `end_at IS NULL`.** Solo puede haber una abierta por proyecto.
 - `model` es nullable porque no siempre se conoce el ID exacto del modelo.
+- **Pausas (Fase 7):** la duración de una sesión es **tiempo neto** = `(end_at - start_at) - Σ(resume_at - pause_at)`, calculado al vuelo (`net_minutes()`). Sesiones sin filas en `session_pauses` mantienen exactamente su duración bruta. La tabla se crea tras la reconstrucción de `sessions` de la Fase 5B para no dejar la FK apuntando a una tabla reemplazada.
 - `agent` es nullable para registrar trabajo solo-humano (sin agente de IA). Se muestra como "individual" en la interfaz.
 
 ---

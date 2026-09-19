@@ -14,7 +14,7 @@
 - [x] **Fase 4** — Empaquetado pip (instalación local) · completada en sesión 7 (2026-06-15)
 - [x] **Fase 5** — Portabilidad inicial de la BD + campos opcionales · completada en sesión 9 (2026-07-05)
 - [x] **Fase 6** — Mejoras de Status y Reporte de Proyecto · completada en sesión 10 (2026-07-30)
-- [ ] **Fase 7** — Sistema de pausas
+- [x] **Fase 7** — Sistema de pausas · completada en sesión 12 (2026-09-18)
 - [ ] **Fase 8** — Registro estructurado de agentes/modelos por sesión (multi-agente)
 - [ ] **Fase 9** — Edición de sesión abierta
 - [ ] **Fase 10** — Pruebas automatizadas
@@ -212,7 +212,7 @@ Checklist de tareas:
 
 ## Fase 7 — Sistema de pausas
 
-**Estado:** ⬜ Pendiente
+**Estado:** ✅ Completada (sesión 12 · 2026-09-18)
 
 **Objetivo:** permitir pausar y reanudar una sesión abierta sin cerrarla, para reflejar
 interrupciones reales del trabajo (atender algo distinto un rato) sin fragmentar el
@@ -220,23 +220,25 @@ registro en varias sesiones sueltas.
 
 Checklist de tareas:
 
-- [ ] Tabla nueva `session_pauses(id, session_id, pause_at, resume_at NULL, motivo)`.
+- [x] Tabla nueva `session_pauses(id, session_id, pause_at, resume_at NULL, motivo)`.
       Se prefiere tabla sobre columnas simples en `sessions` porque permite varias pausas
       por sesión y guardar el motivo de cada una.
-- [ ] Regla: solo una pausa activa (`resume_at IS NULL`) por sesión; solo se puede pausar
+- [x] Regla: solo una pausa activa (`resume_at IS NULL`) por sesión; solo se puede pausar
       una sesión abierta y que no esté ya pausada.
-- [ ] Comando `cowork pause [motivo]`: abre una pausa en la sesión activa.
-- [ ] Comando `cowork resume`: cierra la pausa activa.
-- [ ] `status` muestra si la sesión está en pausa (desde cuándo, motivo) y el tiempo
+- [x] Comando `cowork pause [motivo]`: abre una pausa en la sesión activa.
+- [x] Comando `cowork resume`: cierra la pausa activa.
+- [x] `status` muestra si la sesión está en pausa (desde cuándo, motivo) y el tiempo
       pausado acumulado.
-- [ ] `duration_minutes()` pasa a calcular **tiempo neto** = `(end_at - start_at) -
+- [x] `duration_minutes()` pasa a calcular **tiempo neto** = `(end_at - start_at) -
       Σ(resume_at - pause_at)` de las pausas cerradas de esa sesión. Sesiones históricas
       sin filas en `session_pauses` no cambian su duración calculada.
-- [ ] Decidir y documentar el comportamiento de `end` con una pausa activa sin resolver
+- [x] Decidir y documentar el comportamiento de `end` con una pausa activa sin resolver
       (auto-cerrarla en ese instante, de forma que el tiempo pausado hasta ahí no cuente
-      como trabajado).
-- [ ] Decidir si `report`/`export` muestran el tiempo pausado como columna informativa
-      aparte del tiempo neto.
+      como trabajado). **Decidido:** `end` y `start --force` cierran la pausa activa en
+      `end_at` y avisan en pantalla.
+- [x] Decidir si `report`/`export` muestran el tiempo pausado como columna informativa
+      aparte del tiempo neto. **Decidido:** `report`/`export` usan siempre tiempo neto; el pausado
+      se muestra solo en `report --this` ("Tiempo pausado") y en `export` por sesión si > 0.
 
 **Criterio de aceptación:** una sesión con una o más pausas registra duración neta
 correcta (excluye el tiempo pausado); sesiones sin pausas no cambian de comportamiento;

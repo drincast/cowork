@@ -95,7 +95,9 @@ python cowork.py init "Nombre del proyecto"         # registra o renombra el pro
 python cowork.py start "Claude Code" "claude-opus-4-8"  # abre sesión con agente
 python cowork.py start                              # abre sesión individual (solo-humano)
 python cowork.py status                             # muestra sesión activa y tiempo transcurrido
-python cowork.py end "resumen de lo trabajado"      # cierra y calcula duración
+python cowork.py pause "motivo"                    # pausa la sesión (el tiempo pausado no cuenta)
+python cowork.py resume                             # reanuda la sesión pausada
+python cowork.py end "resumen de lo trabajado"      # cierra y calcula duración neta
 ```
 
 Consultas y export:

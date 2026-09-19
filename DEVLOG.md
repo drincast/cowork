@@ -5,6 +5,32 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-09-18 | Sesión 12 | Fase 7 — Sistema de pausas
+
+### Análisis de impacto previo
+
+BD real revisada en solo lectura (106 sesiones, 0 abiertas): la tabla nueva no altera datos
+existentes. Riesgos identificados y resueltos: `duration_minutes` se usaba en 7 sitios (se
+reemplazó por `net_minutes` en todos para no mezclar bruto/neto); el `report` global no
+seleccionaba `s.id`; `session_pauses` se crea después de la reconstrucción de `sessions`
+(Fase 5B); `end`/`start --force` deben cerrar la pausa activa.
+
+### Implementado
+
+- Tabla `session_pauses` + índice único parcial (una pausa activa por sesión).
+- `cowork pause [motivo]` y `cowork resume`, con errores claros por estado inválido.
+- Duración neta en `end`, `status`, `list`, `report`, `report --this` y `export`;
+  `status` muestra EN PAUSA, motivo y pausado acumulado.
+- `end`/`start --force` con pausa activa: se cierra en ese instante y se avisa.
+
+### Verificación
+
+Sobre copia de la BD real: salida de `report` (4 variantes) idéntica antes/después.
+Pausas de prueba con timestamps controlados (100 min − 30 pausados = 70 neto; auto-cierre
+con pausa activa = 40). Migración de una BD pre-Fase 5B: sin violaciones de FK e idempotente.
+
+---
+
 ## 2026-09-12 | Sesión 11 | Planeación — Nuevas fases 7 a 9 (sin implementación)
 
 ### Naturaleza de la sesión

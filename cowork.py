@@ -182,6 +182,26 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         conn.commit()
         conn.execute("PRAGMA foreign_keys = ON")
 
+    # Fase 7: pausas de sesión. Se crea DESPUÉS de la reconstrucción de `sessions`
+    # (Fase 5B) para que su FK no quede apuntando a una tabla reemplazada.
+    # El índice único parcial garantiza una sola pausa activa por sesión.
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS session_pauses (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id  INTEGER NOT NULL REFERENCES sessions(id),
+            pause_at    TEXT NOT NULL,
+            resume_at   TEXT,
+            motivo      TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pauses_session
+            ON session_pauses(session_id);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_pauses_active
+            ON session_pauses(session_id) WHERE resume_at IS NULL;
+    """)
+    conn.commit()
+
 
 # ---------------------------------------------------------------------------
 # Helpers de tiempo
@@ -198,6 +218,57 @@ def parse_iso(ts: str) -> datetime:
 def duration_minutes(start: str, end: str) -> float:
     delta = parse_iso(end) - parse_iso(start)
     return delta.total_seconds() / 60
+
+
+def get_active_pause(conn: sqlite3.Connection, session_id: int):
+    return conn.execute(
+        "SELECT * FROM session_pauses WHERE session_id = ? AND resume_at IS NULL",
+        (session_id,),
+    ).fetchone()
+
+
+def close_active_pause(conn: sqlite3.Connection, session_id: int, ts: str) -> bool:
+    """Cierra la pausa activa (si existe) en `ts`. Devuelve True si había una."""
+    cur = conn.execute(
+        "UPDATE session_pauses SET resume_at = ? "
+        "WHERE session_id = ? AND resume_at IS NULL",
+        (ts, session_id),
+    )
+    return cur.rowcount > 0
+
+
+def paused_minutes(conn: sqlite3.Connection, session_id: int, upto: str = None) -> float:
+    """Minutos pausados de una sesión. Una pausa activa cuenta hasta `upto`
+    (si se indica); las cerradas cuentan siempre completas."""
+    total = 0.0
+    for p in conn.execute(
+        "SELECT pause_at, resume_at FROM session_pauses WHERE session_id = ?",
+        (session_id,),
+    ):
+        fin = p["resume_at"] or upto
+        if fin:
+            total += duration_minutes(p["pause_at"], fin)
+    return total
+
+
+def net_minutes(conn: sqlite3.Connection, sess, end: str = None) -> float:
+    """Tiempo neto de una sesión = (fin - inicio) - pausas. `end` por defecto es
+    sess['end_at']; para sesiones abiertas pasar now_iso(). Sesiones sin pausas
+    dan exactamente la duración bruta."""
+    fin = end or sess["end_at"]
+    bruto = duration_minutes(sess["start_at"], fin)
+    return max(0.0, bruto - paused_minutes(conn, sess["id"], upto=fin))
+
+
+def paused_by_session(conn: sqlite3.Connection) -> dict:
+    """{session_id: minutos pausados} para pausas cerradas (evita N+1 en reportes)."""
+    out = defaultdict(float)
+    for p in conn.execute(
+        "SELECT session_id, pause_at, resume_at FROM session_pauses "
+        "WHERE resume_at IS NOT NULL"
+    ):
+        out[p["session_id"]] += duration_minutes(p["pause_at"], p["resume_at"])
+    return out
 
 
 def fmt_duration(mins: float) -> str:
@@ -477,7 +548,8 @@ def cmd_start(args) -> None:
                 sys.exit(1)
             else:
                 end_ts = now_iso()
-                mins = duration_minutes(open_sess["start_at"], end_ts)
+                close_active_pause(conn, open_sess["id"], end_ts)
+                mins = net_minutes(conn, open_sess, end=end_ts)
                 conn.execute(
                     "UPDATE sessions SET end_at = ? WHERE id = ?",
                     (end_ts, open_sess["id"]),
@@ -519,13 +591,15 @@ def cmd_end(args) -> None:
 
         end_ts = now_iso()
         summary = args.resumen or None
+        pausa_cerrada = close_active_pause(conn, open_sess["id"], end_ts)
         conn.execute(
             "UPDATE sessions SET end_at = ?, summary = ? WHERE id = ?",
             (end_ts, summary, open_sess["id"]),
         )
         conn.commit()
 
-        mins = duration_minutes(open_sess["start_at"], end_ts)
+        mins = net_minutes(conn, open_sess, end=end_ts)
+        pausado = paused_minutes(conn, open_sess["id"])
         h, m = divmod(int(mins), 60)
         duracion = f"{h}h {m:02d}m" if h else f"{m}m"
         started = parse_iso(open_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
@@ -535,8 +609,63 @@ def cmd_end(args) -> None:
             f"  Inicio   : {started}\n"
             f"  Duración : {duracion} ({mins:.1f} min)"
         )
+        if pausado > 0:
+            print(f"  Pausado  : {fmt_duration(pausado)} (no cuenta como trabajado)")
+        if pausa_cerrada:
+            print("  Aviso    : había una pausa activa; se cerró al terminar la sesión.")
         if summary:
             print(f"  Resumen  : {summary}")
+
+
+def cmd_pause(args) -> None:
+    with open_db() as conn:
+        project = find_project(conn)
+        if not project:
+            print("No hay proyecto registrado en esta ruta. Usa 'cowork start' primero.")
+            sys.exit(1)
+        open_sess = get_open_session(conn, project["id"])
+        if not open_sess:
+            print("No hay sesión abierta en este proyecto; no hay nada que pausar.")
+            sys.exit(1)
+        pausa = get_active_pause(conn, open_sess["id"])
+        if pausa:
+            desde = parse_iso(pausa["pause_at"]).strftime("%H:%M")
+            print(f"La sesión ya está en pausa desde las {desde}. Usa 'cowork resume'.")
+            sys.exit(1)
+        ts = now_iso()
+        motivo = args.motivo or None
+        conn.execute(
+            "INSERT INTO session_pauses (session_id, pause_at, motivo) VALUES (?, ?, ?)",
+            (open_sess["id"], ts, motivo),
+        )
+        conn.commit()
+        extra = f" — {motivo}" if motivo else ""
+        print(f"Sesión en pausa desde las {parse_iso(ts).strftime('%H:%M')}{extra}.")
+        print("  Reanúdala con 'cowork resume'.")
+
+
+def cmd_resume(args) -> None:
+    with open_db() as conn:
+        project = find_project(conn)
+        if not project:
+            print("No hay proyecto registrado en esta ruta. Usa 'cowork start' primero.")
+            sys.exit(1)
+        open_sess = get_open_session(conn, project["id"])
+        if not open_sess:
+            print("No hay sesión abierta en este proyecto.")
+            sys.exit(1)
+        pausa = get_active_pause(conn, open_sess["id"])
+        if not pausa:
+            print("La sesión no está en pausa.")
+            sys.exit(1)
+        ts = now_iso()
+        close_active_pause(conn, open_sess["id"], ts)
+        conn.commit()
+        print(
+            f"Sesión reanudada. Pausa de {fmt_duration(duration_minutes(pausa['pause_at'], ts))}"
+            f" (no cuenta como trabajado)."
+        )
+        print(f"  Pausado acumulado : {fmt_duration(paused_minutes(conn, open_sess['id']))}")
 
 
 def cmd_status(args) -> None:
@@ -555,21 +684,31 @@ def cmd_status(args) -> None:
             ).fetchone()
             if last_sess:
                 started = parse_iso(last_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
-                mins = duration_minutes(last_sess["start_at"], last_sess["end_at"])
+                mins = net_minutes(conn, last_sess)
                 print(f"Última sesión: {started} ({mins:.1f} min)")
             print(db_summary_line())
             return
 
         started = parse_iso(open_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
-        elapsed = elapsed_display(open_sess["start_at"])
+        ahora = now_iso()
+        neto = net_minutes(conn, open_sess, end=ahora)
+        pausa = get_active_pause(conn, open_sess["id"])
         model_str = f" ({open_sess['model']})" if open_sess["model"] else ""
+        estado = "EN PAUSA" if pausa else "ABIERTA"
         print(
             f"Proyecto  : {project['name']}\n"
-            f"Sesión    : ABIERTA\n"
+            f"Sesión    : {estado}\n"
             f"Agente    : {fmt_agent(open_sess['agent'])}{model_str}\n"
             f"Inicio    : {started}\n"
-            f"Transcurrido : {elapsed}"
+            f"Transcurrido : {elapsed_display(open_sess['start_at'])} (neto: {fmt_duration(neto)})"
         )
+        if pausa:
+            desde = parse_iso(pausa["pause_at"]).strftime("%H:%M")
+            motivo = f" — {pausa['motivo']}" if pausa["motivo"] else ""
+            print(f"Pausa     : desde {desde}{motivo}")
+        pausado = paused_minutes(conn, open_sess["id"], upto=ahora)
+        if pausado > 0:
+            print(f"Pausado acumulado : {fmt_duration(pausado)}")
         print(db_summary_line())
 
 
@@ -600,10 +739,10 @@ def cmd_list(args) -> None:
             inicio = parse_iso(r["start_at"]).strftime("%Y-%m-%d %H:%M")
             if r["end_at"]:
                 fin = parse_iso(r["end_at"]).strftime("%Y-%m-%d %H:%M")
-                dur = fmt_duration(duration_minutes(r["start_at"], r["end_at"]))
+                dur = fmt_duration(net_minutes(conn, r))
             else:
                 fin = "— (abierta)"
-                dur = elapsed_display(r["start_at"])
+                dur = fmt_duration(net_minutes(conn, r, end=now_iso()))
             modelo = r["model"] or "—"
             agente = fmt_agent(r["agent"])
             print(
@@ -630,26 +769,31 @@ def cmd_report(args) -> None:
                 return
 
             total_n = len(rows)
-            total_mins = sum(duration_minutes(r["start_at"], r["end_at"]) for r in rows)
+            pausas = paused_by_session(conn)
+            total_mins = sum(net_minutes(conn, r) for r in rows)
+            total_pausado = sum(pausas.get(r["id"], 0.0) for r in rows)
             first_date = parse_iso(rows[0]["start_at"]).strftime("%Y-%m-%d %H:%M")
             last_sess = rows[-1]
             last_date = parse_iso(last_sess["start_at"]).strftime("%Y-%m-%d %H:%M")
-            last_dur = fmt_duration(duration_minutes(last_sess["start_at"], last_sess["end_at"]))
+            last_dur = fmt_duration(net_minutes(conn, last_sess))
 
             print(f"Reporte del proyecto: {project['name']} (uid {short_uid(project['uid'])})")
             print(f"  Sesiones totales : {total_n}")
             print(f"  Minutos totales  : {total_mins:.1f}")
             print(f"  Horas totales    : {total_mins / 60:.2f}")
+            if total_pausado > 0:
+                print(f"  Tiempo pausado   : {total_pausado:.1f} min (excluido del total)")
             print(f"  Primer registro  : {first_date}")
             print(f"  Último registro  : {last_date}")
             print(f"  Última sesión    : {fmt_agent(last_sess['agent'])} {last_sess['model'] or ''} ({last_dur})")
             return
 
         rows = conn.execute(
-            "SELECT s.start_at, s.end_at, s.model, p.name AS project_name "
+            "SELECT s.id, s.start_at, s.end_at, s.model, p.name AS project_name "
             "FROM sessions s JOIN projects p ON p.id = s.project_id "
             "WHERE s.end_at IS NOT NULL"
         ).fetchall()
+        pausas = paused_by_session(conn)
 
     if not rows:
         print("No hay sesiones cerradas para reportar.")
@@ -669,7 +813,8 @@ def cmd_report(args) -> None:
     for r in rows:
         key = tuple(fn(r) for _, fn in dims)
         agg[key][0] += 1
-        agg[key][1] += duration_minutes(r["start_at"], r["end_at"])
+        bruto = duration_minutes(r["start_at"], r["end_at"])
+        agg[key][1] += max(0.0, bruto - pausas.get(r["id"], 0.0))
 
     # Sin flags: total global.
     if not dims:
@@ -718,11 +863,14 @@ def cmd_export(args) -> None:
             "ORDER BY start_at DESC",
             (project["id"],),
         ).fetchall()
+        # Tiempo neto y pausado por sesión, calculados con la conexión abierta.
+        netos = {s["id"]: net_minutes(conn, s) for s in sessions}
+        pausas = paused_by_session(conn)
 
     out_path = Path(args.path) if args.path else Path(path) / "WORKLOG.md"
 
     total_sessions = len(sessions)
-    total_mins = sum(duration_minutes(s["start_at"], s["end_at"]) for s in sessions)
+    total_mins = sum(netos.values())
     ultima = (
         parse_iso(sessions[0]["start_at"]).strftime("%Y-%m-%d %H:%M")
         if sessions else "—"
@@ -750,7 +898,7 @@ def cmd_export(args) -> None:
     for s in sessions:
         inicio = parse_iso(s["start_at"]).strftime("%Y-%m-%d %H:%M")
         fin = parse_iso(s["end_at"]).strftime("%Y-%m-%d %H:%M")
-        dur = fmt_duration(duration_minutes(s["start_at"], s["end_at"]))
+        dur = fmt_duration(netos[s["id"]])
         modelo = s["model"] or "—"
         lines.append(f"### {inicio} · {fmt_agent(s['agent'])}")
         lines.append("")
@@ -758,6 +906,8 @@ def cmd_export(args) -> None:
         lines.append(f"- Inicio: {inicio}")
         lines.append(f"- Fin: {fin}")
         lines.append(f"- Duración: {dur}")
+        if pausas.get(s["id"], 0.0) > 0:
+            lines.append(f"- Pausado: {fmt_duration(pausas[s['id']])}")
         if s["summary"]:
             lines.append(f"- Resumen: {s['summary']}")
         lines.append("")
@@ -822,6 +972,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_end = sub.add_parser("end", help="Cierra la sesión abierta.")
     p_end.add_argument("resumen", nargs="?", default=None, help="Resumen de lo trabajado.")
     p_end.set_defaults(func=cmd_end)
+
+    # pause / resume
+    p_pause = sub.add_parser("pause", help="Pausa la sesión abierta (el tiempo pausado no cuenta).")
+    p_pause.add_argument("motivo", nargs="?", default=None, help="Motivo de la pausa (opcional).")
+    p_pause.set_defaults(func=cmd_pause)
+
+    p_resume = sub.add_parser("resume", help="Reanuda la sesión pausada.")
+    p_resume.set_defaults(func=cmd_resume)
 
     # status
     p_status = sub.add_parser("status", help="Muestra la sesión abierta y tiempo transcurrido.")

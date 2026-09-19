@@ -33,6 +33,13 @@ carpeta" en el README). Si no, usa `python /ruta/a/cowork.py` en su lugar.
    cowork status
    ```
 
+   Si te interrumpen un rato, pausa la sesión (el tiempo pausado no cuenta):
+
+   ```bash
+   cowork pause "reunión"     # motivo opcional
+   cowork resume
+   ```
+
 3. **Al terminar**, cierra con un resumen breve de lo hecho:
 
    ```bash
@@ -43,6 +50,7 @@ carpeta" en el README). Si no, usa `python /ruta/a/cowork.py` en su lugar.
 
 - **Una sola sesión abierta por proyecto.** Si olvidaste cerrar una anterior,
   `cowork start ... --force` la cierra y abre la nueva.
+- Si cierras (`end` o `start --force`) con una pausa activa, se cierra sola en ese instante.
 - El proyecto se identifica solo (por marcador `.cowork`, remoto git o ruta);
   no necesitas configurar nada para empezar.
 - Si la base de datos no existe, cowork avisa en vez de crearla silenciosamente.
