@@ -15,12 +15,13 @@
 - [x] **Fase 5** — Portabilidad inicial de la BD + campos opcionales · completada en sesión 9 (2026-07-05)
 - [x] **Fase 6** — Mejoras de Status y Reporte de Proyecto · completada en sesión 10 (2026-07-30)
 - [x] **Fase 7** — Sistema de pausas · completada en sesión 12 (2026-09-18)
-- [ ] **Fase 8** — Registro estructurado de agentes/modelos por sesión (multi-agente)
-- [ ] **Fase 9** — Edición de sesión abierta
-- [ ] **Fase 10** — Pruebas automatizadas
-- [ ] **Fase 11** — Normalización de agentes y modelos (tablas + FK)
-- [ ] **Fase 12** — Extras
-- [ ] **Fase 13** — Publicación en PyPI (final)
+- [ ] **Fase 8** — Versión visible de cowork (`--version`, `-h` y `status`)
+- [ ] **Fase 9** — Registro estructurado de agentes/modelos por sesión (multi-agente)
+- [ ] **Fase 10** — Edición de sesión abierta
+- [ ] **Fase 11** — Pruebas automatizadas
+- [ ] **Fase 12** — Normalización de agentes y modelos (tablas + FK)
+- [ ] **Fase 13** — Extras
+- [ ] **Fase 14** — Publicación en PyPI (final)
 
 > Leyenda: `[x]` completada · `[ ]` pendiente. El detalle de tareas de cada fase está en su checklist más abajo.
 
@@ -246,7 +247,34 @@ correcta (excluye el tiempo pausado); sesiones sin pausas no cambian de comporta
 
 ---
 
-## Fase 8 — Registro estructurado de agentes y modelos por sesión (multi-agente)
+## Fase 8 — Versión visible de cowork
+
+**Estado:** ⬜ Pendiente · sin cambios de esquema ni de datos (riesgo nulo para la BD).
+
+**Objetivo:** que se vea qué versión de cowork se está ejecutando. Hoy hay dos rutas en el
+PATH (lanzador `bin/` del repo y `cowork.exe` de pipx) y no hay forma de distinguirlas.
+
+Checklist de tareas:
+
+- [ ] Constante única `__version__ = "0.1.0"` en `cowork.py`; `pyproject.toml` pasa a versión
+      dinámica (`dynamic = ["version"]` + `[tool.setuptools.dynamic] version = {attr = "cowork.__version__"}`,
+      quitando el `version =` estático). Una sola fuente de verdad, válida con pipx y con
+      `python cowork.py` (`importlib.metadata` no sirve: falla fuera de la instalación pipx).
+- [ ] Flag global `cowork --version` (`argparse action="version"`).
+- [ ] `cowork -h`: primera línea `cowork version x.y.z` (argparse imprime `usage:` primero; se
+      resuelve sobreescribiendo `print_help` del parser raíz). Solo el `-h` raíz.
+- [ ] `cowork status`: primera línea `cowork version x.y.z` en **todas** las ramas (sin
+      proyecto, sin sesión, abierta, en pausa). Validado: ningún script parsea la salida de `status`.
+- [ ] Decidir si se sube a `0.2.0` (hay Fases 5-7 desde `0.1.0`) o se mantiene `0.1.0`.
+- [ ] Documentar en README/USAGE la salida nueva y la regla de release (se edita solo `__version__`).
+
+**Criterio de aceptación:** `cowork --version`, `cowork -h` y `cowork status` muestran la misma
+versión con `cowork.exe` de pipx y con `python cowork.py`; tras cambiar `__version__` y
+reinstalar, el paquete instalado refleja el nuevo número.
+
+---
+
+## Fase 9 — Registro estructurado de agentes y modelos por sesión (multi-agente)
 
 **Estado:** ⬜ Pendiente · **cambio grande** (toca esquema, migración de datos reales y varias consultas)
 
@@ -278,7 +306,7 @@ Checklist de tareas:
 - [ ] Decidir cómo se reparte/cuenta el tiempo de la sesión cuando tiene varios modelos
       en `report --model` (¿tiempo completo por cada modelo usado, o repartido?).
 
-**Nota:** la Fase 11 (normalización con catálogo `agents`/`models` + FK) pasa a operar
+**Nota:** la Fase 12 (normalización con catálogo `agents`/`models` + FK) pasa a operar
 sobre `session_agents.agent`/`model` en vez de `sessions.agent`/`model`, ya que esta fase
 es la que se vuelve fuente de verdad del dato crudo.
 
@@ -289,9 +317,9 @@ sumando manualmente.
 
 ---
 
-## Fase 9 — Edición de sesión abierta
+## Fase 10 — Edición de sesión abierta
 
-**Estado:** ⬜ Pendiente · depende de la Fase 8 (`session_agents`)
+**Estado:** ⬜ Pendiente · depende de la Fase 9 (`session_agents`)
 
 **Objetivo:** permitir agregar o corregir agente/modelo de la sesión activa cuando se
 suma un participante a mitad de camino, sin cerrar y reabrir sesión. Alcance: **solo la
@@ -311,12 +339,12 @@ abierta y queda reflejado correctamente en `session_agents` y en `status`.
 
 ---
 
-## Fase 10 — Pruebas automatizadas
+## Fase 11 — Pruebas automatizadas
 
 **Estado:** ⬜ Pendiente
 
 **Objetivo:** blindar el core antes de seguir agregando funcionalidad. Tras las Fases 5,
-7 y 8 (migraciones y cambios de esquema), conviene tener una red de seguridad.
+7 y 9 (migraciones y cambios de esquema), conviene tener una red de seguridad.
 
 Checklist de tareas:
 
@@ -324,11 +352,12 @@ Checklist de tareas:
 - [ ] Cubrir el ciclo `start`/`end`/`status`, cálculo de duración, resolución de BD por capas
       y resolución de identidad (`.cowork` / remoto git / ruta).
 - [ ] Cubrir los casos de Fase 5: BD ausente (avisar y parar) y sesión individual (agente null).
-- [ ] Cubrir pausas (Fase 7) y registro multi-agente (Fase 8), incluyendo la migración.
+- [ ] Cubrir pausas (Fase 7) y registro multi-agente (Fase 9), incluyendo la migración.
+- [ ] Cubrir `--version` y la línea de versión en `status` (Fase 8).
 
 ---
 
-## Fase 11 — Normalización de agentes y modelos (tablas + FK)
+## Fase 12 — Normalización de agentes y modelos (tablas + FK)
 
 **Estado:** ⬜ Pendiente · **cambio grande** (toca esquema, migración y varias consultas)
 
@@ -350,7 +379,7 @@ por FK; `report --model` sigue dando los mismos totales que antes de la migraci�
 
 ---
 
-## Fase 12 — Extras (futuro)
+## Fase 13 — Extras (futuro)
 
 **Estado:** ⬜ Pendiente
 
@@ -362,7 +391,7 @@ Checklist de tareas candidatas:
 
 ---
 
-## Fase 13 — Publicación en PyPI (final)
+## Fase 14 — Publicación en PyPI (final)
 
 **Estado:** ⬜ Pendiente
 

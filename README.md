@@ -153,7 +153,9 @@ python cowork.py init --db-path "D:\datos\worklog.db"  # crea la BD en la ruta i
 - **Fase 3 completada** — `cowork` invocable desde cualquier carpeta (lanzadores en `bin/` + PATH) y guía de uso para el agente.
 - **Fase 4 completada** — empaquetado con `pyproject.toml`, instalable con `pipx install .` (versión 0.1.0).
 - **Fase 5 completada** — portabilidad de la BD (validación de existencia, `init --db-path`, resumen de ruta/fuente) y campos opcionales para trabajo solo-humano (`start` sin agente).
-- Siguiente: Fase 6 (publicación en PyPI).
+- **Fase 6 completada** — `status` muestra la última sesión cerrada cuando no hay sesión abierta y `report --this` da el resumen del proyecto actual.
+- **Fase 7 completada** — pausas de sesión (`pause` / `resume`); la duración se calcula como tiempo neto, sin el tiempo pausado.
+- Siguiente: Fase 8 (mostrar la versión de cowork). La publicación en PyPI es la Fase 14 (ver `docs/PLAN.md`).
 
 ---
 

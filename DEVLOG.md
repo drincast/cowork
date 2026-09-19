@@ -5,6 +5,18 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-09-18 | Sesión 12 (planeación) | Nueva Fase 8 — versión visible; renumeración 8→9 … 13→14
+
+Se agregó al plan la idea de mostrar la versión de cowork en `cowork -h` y `cowork status`
+(y `cowork --version`) como **Fase 8**, porque con el lanzador `bin/` del repo y el
+`cowork.exe` de pipx en el PATH no se sabe cuál versión corre. Las fases 8-13 anteriores
+pasaron a 9-14 (multi-agente 9, edición de sesión 10, pruebas 11, normalización 12,
+extras 13, PyPI 14) y se ajustaron las referencias cruzadas en `docs/PLAN.md`. La entrada de
+la sesión 11 conserva la numeración vieja a propósito (es histórica). Solo documentación;
+no se tocó `cowork.py`.
+
+---
+
 ## 2026-09-18 | Sesión 12 | Fase 7 — Sistema de pausas
 
 ### Análisis de impacto previo
