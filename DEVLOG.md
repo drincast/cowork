@@ -5,6 +5,40 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-09-21 | Sesión 13 | Fase 8 — Versión visible de cowork
+
+### Implementado
+
+- Constante única `__version__ = "0.2.0"` en `cowork.py` (justo tras los imports).
+  Se sube de `0.1.0` a `0.2.0` porque las Fases 5-7 agregaron esquema y
+  funcionalidad real (campos opcionales, pausas) desde el `0.1.0` original.
+- `pyproject.toml`: `version` estático → `dynamic = ["version"]` +
+  `[tool.setuptools.dynamic] version = {attr = "cowork.__version__"}`. Se
+  descartó `importlib.metadata` porque falla ejecutando `python cowork.py`
+  directo (fuera de una instalación pip/pipx).
+- Flag global `cowork --version` con `argparse action="version"`.
+- `cowork -h`: se sobreescribe `parser.print_help` del parser raíz (no los de
+  los subcomandos) para anteponer `cowork version x.y.z` antes del `usage:`
+  normal de argparse.
+- `cowork status`: `cowork version x.y.z` como primera línea, impresa antes de
+  abrir la BD, así cubre las cuatro ramas (sin proyecto, sin sesión, abierta,
+  en pausa) con una sola línea de código.
+
+### Verificación
+
+Sin cambios de esquema ni de datos (riesgo nulo para la BD). Probado en un
+proyecto aislado con `WORKLOG_HOME` temporal: `--version`, `-h` (con y sin
+subcomando), y `status` en sus cuatro ramas. Confirmado que `cowork start -h` /
+`cowork end -h` etc. no llevan la línea de versión (solo el `-h` raíz).
+
+### Documentación
+
+Actualizados `docs/PLAN.md` (Fase 8 → completada) y `README.md` (sección nueva
+"Versión" + estado). Sin cambios en `AGENTS.md` (Fase 8 no toca ninguna regla
+no negociable).
+
+---
+
 ## 2026-09-18 | Sesión 12 (planeación) | Nueva Fase 8 — versión visible; renumeración 8→9 … 13→14
 
 Se agregó al plan la idea de mostrar la versión de cowork en `cowork -h` y `cowork status`

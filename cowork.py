@@ -14,6 +14,11 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Fuente única de verdad de la versión (Fase 8). pyproject.toml la lee de aquí
+# vía version = {attr = "cowork.__version__"}; al liberar una versión nueva
+# solo se edita esta línea.
+__version__ = "0.2.0"
+
 
 # ---------------------------------------------------------------------------
 # Configuración y resolución de la BD (Fase 2.5)
@@ -669,6 +674,7 @@ def cmd_resume(args) -> None:
 
 
 def cmd_status(args) -> None:
+    print(f"cowork version {__version__}")
     with open_db() as conn:
         project = find_project(conn)
         if not project:
@@ -949,10 +955,25 @@ def build_parser() -> argparse.ArgumentParser:
         description="Registro de sesiones de trabajo humano + IA.",
     )
     parser.add_argument(
+        "--version", action="version", version=f"cowork version {__version__}",
+        help="Muestra la versión de cowork y termina.",
+    )
+    parser.add_argument(
         "--db", default=None,
         help="Ruta explícita a la BD; anula WORKLOG_HOME y config.json.",
     )
     sub = parser.add_subparsers(dest="comando", required=True)
+
+    # -h del parser raíz: antepone "cowork version x.y.z" antes del uso normal,
+    # para distinguir qué instalación se está ejecutando (bin/ del repo vs.
+    # cowork.exe de pipx). Solo afecta a `cowork -h`, no a `cowork <sub> -h`.
+    _print_help = parser.print_help
+
+    def _print_help_con_version(file=None):
+        (file or sys.stdout).write(f"cowork version {__version__}\n")
+        _print_help(file)
+
+    parser.print_help = _print_help_con_version
 
     # init
     p_init = sub.add_parser("init", help="Registra o renombra el proyecto actual.")

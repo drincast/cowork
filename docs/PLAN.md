@@ -15,7 +15,7 @@
 - [x] **Fase 5** — Portabilidad inicial de la BD + campos opcionales · completada en sesión 9 (2026-07-05)
 - [x] **Fase 6** — Mejoras de Status y Reporte de Proyecto · completada en sesión 10 (2026-07-30)
 - [x] **Fase 7** — Sistema de pausas · completada en sesión 12 (2026-09-18)
-- [ ] **Fase 8** — Versión visible de cowork (`--version`, `-h` y `status`)
+- [x] **Fase 8** — Versión visible de cowork (`--version`, `-h` y `status`) · completada en sesión 13 (2026-09-21)
 - [ ] **Fase 9** — Registro estructurado de agentes/modelos por sesión (multi-agente)
 - [ ] **Fase 10** — Edición de sesión abierta
 - [ ] **Fase 11** — Pruebas automatizadas
@@ -249,24 +249,25 @@ correcta (excluye el tiempo pausado); sesiones sin pausas no cambian de comporta
 
 ## Fase 8 — Versión visible de cowork
 
-**Estado:** ⬜ Pendiente · sin cambios de esquema ni de datos (riesgo nulo para la BD).
+**Estado:** ✅ Completada (sesión 13 · 2026-09-21) · sin cambios de esquema ni de datos (riesgo nulo para la BD).
 
 **Objetivo:** que se vea qué versión de cowork se está ejecutando. Hoy hay dos rutas en el
 PATH (lanzador `bin/` del repo y `cowork.exe` de pipx) y no hay forma de distinguirlas.
 
 Checklist de tareas:
 
-- [ ] Constante única `__version__ = "0.1.0"` en `cowork.py`; `pyproject.toml` pasa a versión
+- [x] Constante única `__version__ = "0.2.0"` en `cowork.py`; `pyproject.toml` pasa a versión
       dinámica (`dynamic = ["version"]` + `[tool.setuptools.dynamic] version = {attr = "cowork.__version__"}`,
       quitando el `version =` estático). Una sola fuente de verdad, válida con pipx y con
       `python cowork.py` (`importlib.metadata` no sirve: falla fuera de la instalación pipx).
-- [ ] Flag global `cowork --version` (`argparse action="version"`).
-- [ ] `cowork -h`: primera línea `cowork version x.y.z` (argparse imprime `usage:` primero; se
+- [x] Flag global `cowork --version` (`argparse action="version"`).
+- [x] `cowork -h`: primera línea `cowork version x.y.z` (argparse imprime `usage:` primero; se
       resuelve sobreescribiendo `print_help` del parser raíz). Solo el `-h` raíz.
-- [ ] `cowork status`: primera línea `cowork version x.y.z` en **todas** las ramas (sin
+- [x] `cowork status`: primera línea `cowork version x.y.z` en **todas** las ramas (sin
       proyecto, sin sesión, abierta, en pausa). Validado: ningún script parsea la salida de `status`.
-- [ ] Decidir si se sube a `0.2.0` (hay Fases 5-7 desde `0.1.0`) o se mantiene `0.1.0`.
-- [ ] Documentar en README/USAGE la salida nueva y la regla de release (se edita solo `__version__`).
+- [x] Se sube a `0.2.0`: hubo cambios de esquema y funcionalidad real en Fases 5-7
+      (pausas, campos opcionales, migraciones) desde `0.1.0`; no es solo un parche.
+- [x] Documentado en README/USAGE la salida nueva y la regla de release (se edita solo `__version__`).
 
 **Criterio de aceptación:** `cowork --version`, `cowork -h` y `cowork status` muestran la misma
 versión con `cowork.exe` de pipx y con `python cowork.py`; tras cambiar `__version__` y

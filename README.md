@@ -116,6 +116,25 @@ python cowork.py start "Claude Code" --force        # auto-cierra la anterior y 
 
 ---
 
+## Versión
+
+```bash
+cowork --version    # imprime "cowork version x.y.z" y termina
+cowork -h           # la primera línea también muestra "cowork version x.y.z"
+```
+
+`cowork status` muestra la versión como primera línea en cualquier estado (sin
+proyecto, sin sesión, sesión abierta o en pausa). Sirve para distinguir, cuando hay
+más de una instalación en el `PATH` (lanzador `bin/` del repo vs. `cowork.exe` de
+pipx), cuál se está ejecutando realmente.
+
+La versión tiene una sola fuente de verdad: la constante `__version__` en
+`cowork.py`. `pyproject.toml` la lee de ahí (versión dinámica), así que liberar una
+versión nueva es editar esa única línea y, si está instalado con pipx, reinstalar
+(`pipx install . --force`).
+
+---
+
 ## Configuración e identidad
 
 **¿Dónde vive la base de datos?** Se resuelve por capas (gana la primera): flag `--db <ruta>` → variable `WORKLOG_HOME` → `config.json` → por defecto `~/.worklog/worklog.db`.
@@ -155,7 +174,8 @@ python cowork.py init --db-path "D:\datos\worklog.db"  # crea la BD en la ruta i
 - **Fase 5 completada** — portabilidad de la BD (validación de existencia, `init --db-path`, resumen de ruta/fuente) y campos opcionales para trabajo solo-humano (`start` sin agente).
 - **Fase 6 completada** — `status` muestra la última sesión cerrada cuando no hay sesión abierta y `report --this` da el resumen del proyecto actual.
 - **Fase 7 completada** — pausas de sesión (`pause` / `resume`); la duración se calcula como tiempo neto, sin el tiempo pausado.
-- Siguiente: Fase 8 (mostrar la versión de cowork). La publicación en PyPI es la Fase 14 (ver `docs/PLAN.md`).
+- **Fase 8 completada** — versión visible (`--version`, `-h` y `status` muestran `cowork version 0.2.0`); versión dinámica en `pyproject.toml` desde `cowork.__version__`.
+- Siguiente: Fase 9 (registro estructurado de agentes/modelos por sesión). La publicación en PyPI es la Fase 14 (ver `docs/PLAN.md`).
 
 ---
 
