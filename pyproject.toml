@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cowork"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Registro de sesiones de trabajo humano + IA, 100% local y sin dependencias."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -31,3 +31,10 @@ cowork = "cowork:main"
 # El proyecto es un unico archivo (cowork.py), no un paquete con carpetas.
 [tool.setuptools]
 py-modules = ["cowork"]
+
+# Version dinamica: unica fuente de verdad es cowork.__version__ (Fase 8).
+# Funciona tanto instalado con pip/pipx como ejecutado directo (python cowork.py),
+# a diferencia de importlib.metadata que solo resuelve version si el paquete
+# esta instalado.
+[tool.setuptools.dynamic]
+version = { attr = "cowork.__version__" }
