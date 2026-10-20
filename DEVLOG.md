@@ -5,6 +5,56 @@ Archivo muestra lo más actual al inicio.
 
 ---
 
+## 2026-10-19 | Sesión 14 | Fase 9 — Registro estructurado de agentes/modelos (multi-agente)
+
+### Análisis previo
+
+Se revisó la propuesta original contra la BD real (150 sesiones, solo lectura) con un
+parser prototipo. Faltaban casos: agregadores con varios modelos dentro de un mismo
+corchete (`[gpt-5.6 Terra, grok-4.6, gemini-3.1-pro]`), sesiones simples con corchetes
+(`[claude-sonnet-5]`, las más comunes), texto vacío `''` en lugar de NULL, comas finales y
+un `]]` suelto. Se rediseñó la fase (ver `docs/PLAN.md`). El usuario corrigió a mano las
+sesiones ambiguas (ids 20, 21, 25) y la 57; quedaron 0 ambiguas.
+
+Decisiones: `report --model` reparte por defecto en partes iguales entre los modelos de la
+sesión (la columna suma el total real) y `--full` da el tiempo completo; se descartó pedir
+porcentajes manuales (una decisión más al cerrar cada sesión). Doble escritura temporal en
+`start`, que se retira en la Fase 12, protegida por la versión de esquema.
+
+### Implementado
+
+- Tabla `session_agents` (una fila por par agente-modelo, `position` = orden del agente) y
+  `PRAGMA user_version = 1`. Con un esquema más nuevo, los comandos que escriben paran.
+- `parse_participants()`: parser único para `start` y la migración.
+- `cowork migrate agents [--apply]`: vista previa por defecto (tipos, filas, valores
+  distintos para detectar erratas, pendientes); `--apply` hace copia de seguridad con la API
+  de backup de SQLite y migra. Idempotente.
+- `start` acepta varios agentes (`"A, B" "[m1], [m2, m3]"`), rechaza texto ambiguo antes de
+  tocar la BD y escribe en `sessions` (texto crudo) y en `session_agents`.
+- `status`, `end`, `list`, `report --this` y `export` muestran
+  `Claude ai (claude-sonnet-5) · Hostgator ai (gpt-5.6 Terra, grok-4.6)`, con respaldo al
+  texto crudo si la sesión no tiene filas. `list` pasa la columna de participantes al final
+  y sin truncar; `export` cambia `- Modelo:` por `- Agentes:`.
+- `report --model` con reparto igual y `--full`; TOTAL = sesiones distintas y tiempo real.
+- Versión 0.3.0.
+
+### Verificación
+
+- `tests/test_participants.py`: 32 pruebas con `unittest` sobre los formatos reales.
+- Sobre una copia de la BD real: vista previa = 218 filas en 143 sesiones; `--apply` crea la
+  copia de seguridad y migra; una segunda pasada no escribe nada; `report` idéntico antes y
+  después (149 sesiones, 23651.8 min); la columna de `report --model` suma el total.
+- Sandbox aislado (`WORKLOG_HOME` temporal): start multi/simple/individual/ambiguo,
+  `--force`, status, end, list, report, export, sesión "legacy" sin filas (respaldo) y
+  guarda de esquema (`user_version = 99` → `start` para, `status` avisa).
+- El `cowork.exe` de pipx (anterior a 0.2.0) lee la copia migrada sin problemas.
+- BD real: el usuario hizo una copia manual y ejecutó `migrate agents --apply` (copia
+  automática `worklog.db.bak-20261019-233631`). Resultado: 218 filas en 143 sesiones (las 7
+  sin filas son individuales), `user_version = 1`, `integrity_check` ok, 0 violaciones de FK,
+  0 duplicados, `report` idéntico al de antes. La sesión abierta (156) quedó migrada.
+
+---
+
 ## 2026-09-21 | Sesión 13 | Fase 8 — Versión visible de cowork
 
 ### Implementado

@@ -19,6 +19,13 @@ carpeta" en el README). Si no, usa `python /ruta/a/cowork.py` en su lugar.
    El agente es el nombre de quien trabaja (ej. `"Claude Code"`, `"Cursor"`);
    el segundo argumento es el modelo (opcional).
 
+   Con **varios agentes**, sepáralos por coma y da un grupo `[...]` de modelos
+   por agente, en el mismo orden:
+
+   ```bash
+   cowork start "Claude ai, Hostgator ai" "[claude-sonnet-5], [gpt-5.6 Terra, grok-4.6]"
+   ```
+
    Para registrar **trabajo individual** (solo-humano, sin agente de IA):
 
    ```bash
@@ -57,7 +64,8 @@ carpeta" en el README). Si no, usa `python /ruta/a/cowork.py` en su lugar.
   Usa `cowork init` para crearla por primera vez, o
   `cowork init --db-path <ruta>` para elegir dónde vivirá (ej. disco externo).
 - Consultas cuando quieras: `cowork list` (últimas sesiones),
-  `cowork report --model` (tiempo por modelo/proyecto/mes),
+  `cowork report --model` (tiempo por modelo/proyecto/mes; con varios modelos
+  la sesión se reparte en partes iguales, `--full` da el tiempo completo),
   `cowork export` (genera `WORKLOG.md` versionable).
 
 ## Recomendación para el agente

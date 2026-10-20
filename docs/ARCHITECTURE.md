@@ -133,6 +133,19 @@ CREATE TABLE session_pauses (           -- Fase 7
 CREATE INDEX idx_pauses_session ON session_pauses(session_id);
 CREATE UNIQUE INDEX idx_pauses_active
     ON session_pauses(session_id) WHERE resume_at IS NULL;  -- una pausa activa por sesión
+
+CREATE TABLE session_agents (           -- Fase 9
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  INTEGER NOT NULL REFERENCES sessions(id),
+    agent       TEXT NOT NULL,
+    model       TEXT,                   -- NULL = agente sin modelo indicado
+    position    INTEGER NOT NULL,       -- orden del agente; se repite por cada modelo suyo
+    added_at    TEXT NOT NULL           -- ISO 8601 con offset
+);
+
+CREATE INDEX idx_session_agents_session ON session_agents(session_id);
+
+PRAGMA user_version = 1;                -- versión del esquema (Fase 9)
 ```
 
 Decisiones clave:
@@ -143,6 +156,10 @@ Decisiones clave:
 - `model` es nullable porque no siempre se conoce el ID exacto del modelo.
 - **Pausas (Fase 7):** la duración de una sesión es **tiempo neto** = `(end_at - start_at) - Σ(resume_at - pause_at)`, calculado al vuelo (`net_minutes()`). Sesiones sin filas en `session_pauses` mantienen exactamente su duración bruta. La tabla se crea tras la reconstrucción de `sessions` de la Fase 5B para no dejar la FK apuntando a una tabla reemplazada.
 - `agent` es nullable para registrar trabajo solo-humano (sin agente de IA). Se muestra como "individual" en la interfaz.
+- **Participantes (Fase 9):** `session_agents` guarda una fila por par agente-modelo; es la fuente de verdad de quién participó. `sessions.agent`/`model` conservan el texto crudo tal como se escribió (respaldo y auditoría) y `start` sigue escribiéndolo (**doble escritura temporal**, para que versiones anteriores de cowork sigan viendo la sesión; se retira en la Fase 12). Las lecturas usan `session_agents` y, si una sesión no tiene filas (no migrada o creada con una versión anterior), muestran el texto crudo.
+- **Texto agente/modelo:** `"Claude ai, Hostgator ai"` + `"[claude-sonnet-5], [gpt-5.6, grok-4.6]"`: cada `[...]` es el grupo de modelos del agente en esa posición; con un solo agente todos los modelos son suyos. Lo que no encaja (p. ej. dos agentes y un modelo) es ambiguo: `start` lo rechaza y `migrate agents` lo lista para revisión manual. El parser (`parse_participants`) es el mismo en ambos sitios.
+- **Tiempo por modelo:** en `report --model` cada sesión aporta a cada uno de sus modelos distintos su tiempo neto **repartido en partes iguales** (la columna suma el total real); con `--full`, el tiempo completo a cada modelo (presencia, no sumable).
+- **Versión de esquema (`PRAGMA user_version`):** si la BD trae un esquema más nuevo que el que conoce la versión de cowork en uso, los comandos que escriben avisan y paran; los de lectura avisan y continúan sin tocar el esquema.
 
 ---
 
@@ -166,12 +183,13 @@ Esto resuelve el escenario que en el sistema Markdown actual produciría duracio
 |---|---|
 | `cowork init [nombre]` | Registra/renombra el proyecto de la ruta actual. Opcional. |
 | `cowork init [nombre] --db-path <ruta>` | Igual, pero primero persiste la ubicación de la BD en `config.json` y la crea ahí. |
-| `cowork start [agente] [modelo]` | Resuelve/crea proyecto por ruta actual y abre sesión. Sin agente = sesión individual (solo-humano). Si hay una abierta, avisa y para. |
+| `cowork start [agente] [modelo]` | Resuelve/crea proyecto por ruta actual y abre sesión. Sin agente = sesión individual (solo-humano). Acepta varios agentes (`"A, B" "[m1], [m2, m3]"`). Si hay una abierta, avisa y para. |
 | `cowork start [agente] [modelo] --force` | Auto-cierra la sesión abierta previa y abre la nueva. |
 | `cowork end [resumen]` | Cierra la sesión abierta del proyecto actual y calcula duración. |
 | `cowork status` | Muestra la sesión abierta (si hay) y el tiempo transcurrido en vivo. |
 | `cowork list [-n N]` | Últimas N sesiones del proyecto actual. |
-| `cowork report [--project] [--month] [--model]` | Agregados de tiempo por proyecto, modelo y/o mes. |
+| `cowork report [--project] [--month] [--model [--full]]` | Agregados de tiempo por proyecto, modelo y/o mes. Por modelo, reparto igual (o completo con `--full`). |
+| `cowork migrate agents [--apply]` | Migra `sessions.agent`/`model` a `session_agents`. Sin `--apply` solo muestra el resultado; con `--apply` hace copia de seguridad y migra. Idempotente. |
 | `cowork export [--md] [--path RUTA]` | Genera `WORKLOG.md` en el proyecto desde la BD. A demanda. |
 
 Notas de comportamiento:

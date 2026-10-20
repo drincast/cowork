@@ -93,6 +93,7 @@ Por defecto la BD vive en `~/.worklog/worklog.db`. Si quieres llevarla en un dis
 ```bash
 python cowork.py init "Nombre del proyecto"         # registra o renombra el proyecto actual
 python cowork.py start "Claude Code" "claude-opus-4-8"  # abre sesión con agente
+python cowork.py start "Claude ai, Hostgator ai" "[claude-sonnet-5], [gpt-5.6, grok-4.6]"  # varios agentes
 python cowork.py start                              # abre sesión individual (solo-humano)
 python cowork.py status                             # muestra sesión activa y tiempo transcurrido
 python cowork.py pause "motivo"                    # pausa la sesión (el tiempo pausado no cuenta)
@@ -105,8 +106,37 @@ Consultas y export:
 ```bash
 python cowork.py list -n 10                          # últimas sesiones del proyecto
 python cowork.py report --model                      # tiempo agregado por modelo (o --project / --month / --this (datos del proyecto actual, carpeta de proyecto))
+python cowork.py report --model --full               # tiempo completo de cada sesión a cada modelo (no sumable)
 python cowork.py export                              # genera WORKLOG.md desde la BD
 ```
+
+### Varios agentes y modelos en una sesión
+
+Con varios agentes, el modelo lleva **un grupo `[...]` por agente, en el mismo orden**.
+Un agente agregador puede tener varios modelos dentro de su grupo:
+
+```bash
+cowork start "Claude ai, Hostgator ai" "[claude-sonnet-5], [gpt-5.6 Terra, grok-4.6]"
+# → Claude ai (claude-sonnet-5) · Hostgator ai (gpt-5.6 Terra, grok-4.6)
+```
+
+Con un solo agente, todos los modelos son suyos (`"Mammouth ai" "[kimi-k2.6, gemini-3.5-pro]"`).
+Si el texto es ambiguo (p. ej. dos agentes y un solo modelo), `start` avisa y no abre la sesión.
+
+En `report --model`, el tiempo de una sesión con varios modelos **se reparte en partes
+iguales** entre ellos (1 h con 3 modelos → 20 min cada uno), así la columna suma el tiempo
+real. Con `--full`, cada modelo suma la duración completa (tiempo de presencia; la columna
+no es sumable).
+
+**Sesiones registradas antes de la v0.3.0:** se migran a la tabla nueva con
+
+```bash
+cowork migrate agents           # vista previa: no escribe nada
+cowork migrate agents --apply   # migra (hace copia de seguridad de la BD antes)
+```
+
+Es idempotente: se puede repetir sin duplicar. Mientras una sesión no esté migrada, se
+muestra con su texto original.
 
 Si olvidaste cerrar una sesión anterior:
 
@@ -175,7 +205,8 @@ python cowork.py init --db-path "D:\datos\worklog.db"  # crea la BD en la ruta i
 - **Fase 6 completada** — `status` muestra la última sesión cerrada cuando no hay sesión abierta y `report --this` da el resumen del proyecto actual.
 - **Fase 7 completada** — pausas de sesión (`pause` / `resume`); la duración se calcula como tiempo neto, sin el tiempo pausado.
 - **Fase 8 completada** — versión visible (`--version`, `-h` y `status` muestran `cowork version 0.2.0`); versión dinámica en `pyproject.toml` desde `cowork.__version__`.
-- Siguiente: Fase 9 (registro estructurado de agentes/modelos por sesión). La publicación en PyPI es la Fase 14 (ver `docs/PLAN.md`).
+- **Fase 9 completada** — registro estructurado de agentes/modelos por sesión (tabla `session_agents`), `cowork migrate agents`, reparto de tiempo por modelo en `report --model` (versión 0.3.0).
+- Siguiente: Fase 10 (edición de sesión abierta: `cowork agent add`). La publicación en PyPI es la Fase 14 (ver `docs/PLAN.md`).
 
 ---
 
