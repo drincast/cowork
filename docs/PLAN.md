@@ -16,7 +16,7 @@
 - [x] **Fase 6** — Mejoras de Status y Reporte de Proyecto · completada en sesión 10 (2026-07-30)
 - [x] **Fase 7** — Sistema de pausas · completada en sesión 12 (2026-09-18)
 - [x] **Fase 8** — Versión visible de cowork (`--version`, `-h` y `status`) · completada en sesión 13 (2026-09-21)
-- [ ] **Fase 9** — Registro estructurado de agentes/modelos por sesión (multi-agente)
+- [x] **Fase 9** — Registro estructurado de agentes/modelos por sesión (multi-agente) · completada en sesión 14 (2026-10-19)
 - [ ] **Fase 10** — Edición de sesión abierta
 - [ ] **Fase 11** — Pruebas automatizadas
 - [ ] **Fase 12** — Normalización de agentes y modelos (tablas + FK)
@@ -277,44 +277,81 @@ reinstalar, el paquete instalado refleja el nuevo número.
 
 ## Fase 9 — Registro estructurado de agentes y modelos por sesión (multi-agente)
 
-**Estado:** ⬜ Pendiente · **cambio grande** (toca esquema, migración de datos reales y varias consultas)
+**Estado:** ✅ Completada (sesión 14 · 2026-10-19) · **cambio grande** (esquema, migración de datos reales, varias consultas) · sube a **v0.3.0**
 
-**Objetivo:** reemplazar el emparejamiento manual por posición que se usa hoy para
-sesiones con varios agentes/modelos (`agent = "claude ai, openai, brave ai"`,
-`model = "[claude-sonnet-5], [openai-luna], [ai-grounding]"`, con la correspondencia
-implícita por orden) por una relación explícita agente↔modelo, sin depender de que las
-dos listas queden bien alineadas.
+**Objetivo:** reemplazar el emparejamiento implícito por posición entre `sessions.agent` y
+`sessions.model` (`"Claude ai, Hostgator ai"` + `"[claude-sonnet-5], [gpt-5.6 Terra, grok-4.6]"`)
+por una relación explícita agente↔modelo en una tabla propia.
 
-Checklist de tareas:
+### Esquema
 
-- [ ] Tabla nueva `session_agents(id, session_id, agent, model, posicion, added_at)`.
-- [ ] `sessions.agent`/`model` quedan como histórico de solo lectura (no se eliminan:
-      sirven de respaldo crudo para auditar la migración).
-- [ ] **Migración de datos históricos** (idempotente, revisable con `--dry-run` antes de
-      aplicar, no automática al abrir la BD):
-      1. `agent`/`model` NULL → no genera filas (sesión individual).
-      2. Sesión "simple" (sin coma en `agent`, sin formato de lista en `model`) → una
-         fila en `session_agents` con posición 1, valores tal cual.
-      3. Sesión "multi" (agent con comas y model en formato `[m1], [m2], ...`) → separar
-         ambas listas y emparejar por posición, generando una fila por par.
-      4. Casos ambiguos (conteo de agentes ≠ conteo de modelos, o formato no reconocido)
-         → no migrar automáticamente; reportar al final la lista de sesiones que
-         requieren revisión manual.
-- [ ] `start` sigue aceptando opcionalmente el primer agente/modelo (crea la fila de
-      posición 1 en `session_agents`).
-- [ ] `list`, `status`, `export` y `report --model` pasan a leer de `session_agents` vía
-      JOIN en vez de las columnas de texto de `sessions`.
-- [ ] Decidir cómo se reparte/cuenta el tiempo de la sesión cuando tiene varios modelos
-      en `report --model` (¿tiempo completo por cada modelo usado, o repartido?).
+- [x] Tabla nueva `session_agents(id, session_id, agent, model NULL, position, added_at)`.
+      Una fila por par agente-modelo; `position` es el orden del agente (se repite si el
+      agente tiene varios modelos, p.ej. agregadores como Hostgator/Mammouth).
+- [x] `sessions.agent`/`model` se conservan como texto crudo (respaldo y auditoría).
+- [x] Versión de esquema en la BD (`PRAGMA user_version = 1`). Si la BD tiene un esquema
+      más nuevo del que cowork conoce, los comandos que escriben avisan y paran ("actualiza
+      cowork"). Prepara el retiro seguro de la doble escritura (Fase 12).
+
+### Parser de texto agente/modelo (compartido por migración y `start`)
+
+- [x] `agent`/`model` NULL o vacíos (`''`) → sesión individual, sin filas.
+- [x] Agentes: separar por coma, recortar y colapsar espacios, descartar vacíos (coma final).
+- [x] Modelos con corchetes: cada `[...]` es el grupo del agente en esa posición; dentro,
+      separar por coma. Corchetes sueltos (`]]`) se ignoran. Sin corchetes: separar por coma,
+      un modelo por agente. Texto fuera de corchetes → ambiguo.
+- [x] Nº agentes = nº grupos → emparejar por posición. Un solo agente → todos los modelos
+      son suyos. Agentes sin modelo → filas con `model` NULL. Cualquier otro caso → ambiguo.
+- [x] No corrige mayúsculas ni erratas (`Calude ai`, `claude-oppus-5.5`): eso es Fase 12.
+- [x] Pruebas unitarias del parser con `unittest` (stdlib) sobre los formatos reales
+      (`tests/test_participants.py`, 32 pruebas; `python -m unittest discover tests`).
+
+### Migración de datos históricos
+
+- [x] Comando `cowork migrate agents`: por defecto solo **muestra** el resultado (resumen por
+      tipo, sesiones pendientes y valores distintos de agente/modelo para detectar erratas).
+      Con `--apply` escribe. Nunca automática al abrir la BD.
+- [x] Antes de `--apply`, copia de seguridad de la BD (`worklog.db.bak-AAAAMMDD-HHMMSS`).
+- [x] Idempotente: salta sesiones que ya tienen filas en `session_agents`.
+- [x] Las sesiones ambiguas no se migran; se listan como pendientes de revisión manual.
+- [x] Referencia (2026-10-19, 150 sesiones, tras corregir a mano las ids 20, 21, 25 y 57):
+      7 individuales, 100 simples, 43 multi, 0 ambiguas → 218 filas en 143 sesiones.
+      Verificado sobre una copia: `report` idéntico antes/después y segunda pasada sin cambios.
+- [x] Aplicada `cowork migrate agents --apply` en la BD real (2026-10-19): 218 filas en
+      143 sesiones, `integrity_check` ok, sin violaciones de FK ni duplicados; `report`
+      idéntico antes/después (149 sesiones cerradas, 23651.8 min).
+
+### Comandos
+
+- [x] `start` usa el mismo parser: acepta `start "Claude ai, Hostgator ai" "[m1], [m2, m3]"`
+      y crea las filas. Si el texto es ambiguo, avisa y para mostrando el formato esperado.
+- [x] **Doble escritura (temporal):** `start` guarda también el texto crudo en
+      `sessions.agent`/`model`, para que versiones anteriores (pipx 0.2.0, otros equipos que
+      usen la misma BD) sigan mostrando la sesión. Se retira en la Fase 12.
+- [x] **Lectura con respaldo:** `list`, `status`, `export`, `end` y `report` leen de
+      `session_agents`; si una sesión no tiene filas (no migrada, ambigua o creada con una
+      versión vieja), muestran el texto de `sessions`. Verificado: el `cowork.exe` de pipx
+      (pre-0.2.0) lee sin problemas una BD ya migrada.
+- [x] Formato de salida agrupado por agente: `Claude ai (claude-sonnet-5) · Hostgator ai (gpt-5.6 Terra, grok-4.6)`.
+
+### Tiempo en `report --model`
+
+- [x] **Por defecto, reparto igual:** cada sesión se divide en partes iguales entre sus
+      modelos distintos; la columna suma exactamente el tiempo trabajado. Ej.: 1 h con 3
+      modelos → 20 min c/u. TOTAL muestra sesiones distintas y tiempo real.
+- [x] **Opcional `--full`:** cada modelo suma la duración completa de las sesiones en que
+      participó (tiempo de presencia). La columna no es sumable; se muestra el total real aparte.
+- [x] Descartado: capturar porcentajes manuales por modelo (añade una decisión más al
+      cerrar cada sesión). Si se quisiera a futuro, sería una columna opcional sin romper nada.
 
 **Nota:** la Fase 12 (normalización con catálogo `agents`/`models` + FK) pasa a operar
 sobre `session_agents.agent`/`model` en vez de `sessions.agent`/`model`, ya que esta fase
 es la que se vuelve fuente de verdad del dato crudo.
 
-**Criterio de aceptación:** todas las sesiones históricas quedan migradas a
-`session_agents` o explícitamente listadas como pendientes de revisión manual;
-`report --model` sobre datos migrados da totales coherentes con lo que se esperaría
-sumando manualmente.
+**Criterio de aceptación:** todas las sesiones históricas quedan migradas a `session_agents` o
+listadas como pendientes; `report --model` (reparto igual) suma el mismo total que `report` sin
+agrupar; `start` con formato multi crea las filas correctas; una versión 0.2.0 sigue pudiendo
+leer y escribir la BD sin perder datos.
 
 ---
 
@@ -374,6 +411,9 @@ Checklist de tareas:
       distintos ya existentes y reconecte cada fila de `session_agents` a su FK.
 - [ ] `report`, `list`, `export` y `status` pasan a hacer **JOIN** en vez de leer la columna.
 - [ ] Posibles comandos de catálogo (`agents`/`models` para listar/renombrar) — a evaluar.
+- [ ] Retirar la doble escritura de `start` en `sessions.agent`/`model` y subir
+      `user_version`. Requisito previo: ninguna instalación < 0.3.0 en uso (pipx y otros
+      equipos que usen la BD).
 
 **Criterio de aceptación:** las sesiones existentes quedan reconectadas a sus agentes/modelos
 por FK; `report --model` sigue dando los mismos totales que antes de la migración.
